@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2025 md-preview contributors
+Copyright (c) 2025 BenXsha
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,13 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-第三方主题（Typora 主题为纯 CSS，按需下载，本仓库不重新分发）：
-
-- Typora 官方默认主题  https://github.com/typora/typora-default-themes  —— 上游未声明开源许可
-- DrakeTyporaTheme     https://github.com/liangjingkanji/DrakeTyporaTheme  —— MIT, Copyright (c) 2023 劉強東
-- Mdmdt                https://github.com/cayxc/Mdmdt  —— Apache-2.0
-
-用户自行安装的主题，其许可与版权归各自作者所有。

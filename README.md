@@ -31,7 +31,7 @@ $ md-preview --html --theme drake-jb 设计文档.md # 或者直接在浏览器�
 ### 方式一：源码 + 安装脚本（推荐，附带 Dolphin 中键集成）
 
 ```console
-$ git clone <repo> md-preview && cd md-preview
+$ git clone https://github.com/BenXsha/md-preview.git && cd md-preview
 $ ./contrib/install.sh          # 装脚本 + 主题 + desktop 项 + mimeapps 顺序，全部用户级
 $ ./contrib/install.sh --help   # 看看它到底会改哪些文件
 ```
@@ -258,4 +258,4 @@ fetched on demand, never redistributed.
 
 ## License
 
-MIT —— 见 [LICENSE](LICENSE)。第三方主题的许可见上表与 `themes/README.md`。
+MIT —— 见 [LICENSE](LICENSE)；第三方主题与依赖的许可见 [THIRD-PARTY.md](THIRD-PARTY.md)。

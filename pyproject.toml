@@ -9,7 +9,7 @@ description = "Render Markdown with Typora themes into styled PDF/HTML — built
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "benxshare" }]
+authors = [{ name = "BenXsha" }]
 keywords = ["markdown", "typora", "theme", "okular", "kde", "dolphin", "preview", "pdf", "cli"]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -35,6 +35,11 @@ dev = ["pytest>=7.0", "Pillow>=9.0"]
 
 [project.scripts]
 md-preview = "md_preview.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/BenXsha/md-preview"
+Repository = "https://github.com/BenXsha/md-preview"
+Issues = "https://github.com/BenXsha/md-preview/issues"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
