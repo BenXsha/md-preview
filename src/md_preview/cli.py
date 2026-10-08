@@ -55,7 +55,7 @@ BUNDLED_THEMES: dict[str, pathlib.Path] = {
     "default": PACKAGE_FALLBACK,
     "default-dark": PACKAGE_FALLBACK_DARK,
 }
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 CHROMIUM_CANDIDATES = [
     "/usr/bin/microsoft-edge-stable",
