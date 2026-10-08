@@ -34,6 +34,7 @@ their upstream repositories into the user's own config directory. The two bundle
 | 依赖 | 许可 |
 | --- | --- |
 | [markdown-it-py](https://github.com/executablebooks/markdown-it-py) | MIT |
+| [linkify-it-py](https://github.com/tsutsu3/linkify-it-py)（`markdown-it-py[linkify]` 会带上；缺失时自动关闭自动链接功能） | MIT |
 | [Pygments](https://pygments.org/) | BSD-2-Clause |
 | Chromium 系浏览器（Edge / Chrome / Chromium / Brave，仅作为无头 PDF 引擎调用） | 各自许可 |
 | Okular（可选，用于查看生成的 PDF） | GPL-2.0-or-later |

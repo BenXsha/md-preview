@@ -385,7 +385,13 @@ def make_markdown():
             f'</div></pre>'
         )
 
-    return MarkdownIt("gfm-like", {"linkify": True, "highlight": pyg, "html": True}).enable("table"), HtmlFormatter
+    try:
+        import linkify_it  # noqa: F401  # 可选依赖：装了才开启自动链接
+        linkify = True
+    except ImportError:
+        linkify = False
+
+    return MarkdownIt("gfm-like", {"linkify": linkify, "highlight": pyg, "html": True}).enable("table"), HtmlFormatter
 
 
 # ---------------------------------------------------------------- 渲染
@@ -487,13 +493,20 @@ def to_pdf(html_path: pathlib.Path, outdir: pathlib.Path, pdf_path: pathlib.Path
         html_path.as_uri(),
     ]
     try:
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
+        result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=180)
     except subprocess.TimeoutExpired:
         print("md-preview: 生成 PDF 超时", file=sys.stderr)
+        result = None
 
     if pdf_path.exists() and pdf_path.stat().st_size > 0:
         stamp.write_text(sig, encoding="utf-8")
         return pdf_path
+
+    # 打不出来的话把浏览器的话带回来，方便排查（CI、无沙箱环境等）
+    if result is not None and result.returncode not in (0, None):
+        detail = (result.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+        print(f"md-preview: 无头浏览器返回 {result.returncode}，未能生成 PDF"
+              + (f"：{detail[-1]}" if detail else ""), file=sys.stderr)
     return None
 
 

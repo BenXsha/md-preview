@@ -24,7 +24,7 @@ classifiers = [
   "Topic :: Desktop Environment :: K Desktop Environment (KDE)",
 ]
 dependencies = [
-  "markdown-it-py>=3.0",
+  "markdown-it-py[linkify]>=3.0",
   "Pygments>=2.14",
 ]
 

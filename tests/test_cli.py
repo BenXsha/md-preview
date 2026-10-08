@@ -182,6 +182,24 @@ def test_render_html_keeps_theme_page_background(tmp_path, monkeypatch):
     assert "background-color: var(--bg-color, #1f2328)" not in html
 
 
+def test_render_html_works_without_linkify(tmp_path, monkeypatch):
+    """linkify-it-py 是可选依赖：没装时也要能渲染（CI 上曾因它漏声明而全线失败）。"""
+    _prepare(tmp_path, monkeypatch, "#write{max-width:640px}\nbody{background:#fff}\n")
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "linkify_it":
+            raise ImportError("simulated missing linkify-it-py")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    html_path, _, _ = cli.render_html(SAMPLE, cli.BASE_CSS, {"theme": "test"}, "html")
+    html = html_path.read_text(encoding="utf-8")
+    assert 'class="md-fences"' in html
+
+
 def test_render_html_falls_back_without_theme(tmp_path, monkeypatch):
     _prepare(tmp_path, monkeypatch, None)
     html_path, _, _ = cli.render_html(SAMPLE, cli.BASE_CSS, {"theme": "does-not-exist"}, "html")

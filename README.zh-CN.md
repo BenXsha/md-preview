@@ -71,7 +71,7 @@ $ install -Dm755 src/md_preview/cli.py ~/.local/bin/md-preview
 | 依赖 | 用途 |
 | --- | --- |
 | Python ≥ 3.10 | 运行时 |
-| `markdown-it-py`、`Pygments` | Markdown → HTML、代码高亮 |
+| `markdown-it-py[linkify]`、`Pygments` | Markdown → HTML（裸 URL 自动成链接）、代码高亮 |
 | Chromium 系浏览器 | PDF 引擎（`--headless=new --print-to-pdf`），自动探测 Edge/Chrome/Chromium/Brave |
 | Okular 或任意 PDF 阅读器 | 看生成的 PDF；没有就退回浏览器 |
 | Pillow、websockets（可选） | 只有 `tools/theme-gallery.py`、`tools/probe-styles.py` 用 |

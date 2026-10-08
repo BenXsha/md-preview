@@ -74,7 +74,7 @@ $ install -Dm755 src/md_preview/cli.py ~/.local/bin/md-preview
 | Requirement | Why |
 | --- | --- |
 | Python ≥ 3.10 | runtime |
-| `markdown-it-py`, `Pygments` | Markdown → HTML, syntax highlighting |
+| `markdown-it-py[linkify]`, `Pygments` | Markdown → HTML (bare-URL auto-linking), syntax highlighting |
 | a Chromium-based browser | PDF engine (`--headless=new --print-to-pdf`); Edge/Chrome/Chromium/Brave are auto-detected |
 | Okular (or any PDF viewer) | reading the generated PDF; without one the browser is used |
 | Pillow, websockets (optional) | only for `tools/theme-gallery.py` and `tools/probe-styles.py` |
