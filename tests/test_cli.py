@@ -200,6 +200,20 @@ def test_render_html_works_without_linkify(tmp_path, monkeypatch):
     assert 'class="md-fences"' in html
 
 
+def test_no_sandbox_only_in_restricted_environments(monkeypatch):
+    """CI / root 下要关掉 Chromium 沙箱；普通用户环境保持开启。"""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(cli.os, "geteuid", lambda: 1000, raising=False)
+    assert cli._needs_no_sandbox() is False
+
+    monkeypatch.setenv("CI", "true")
+    assert cli._needs_no_sandbox() is True
+
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(cli.os, "geteuid", lambda: 0, raising=False)
+    assert cli._needs_no_sandbox() is True
+
+
 def test_render_html_falls_back_without_theme(tmp_path, monkeypatch):
     _prepare(tmp_path, monkeypatch, None)
     html_path, _, _ = cli.render_html(SAMPLE, cli.BASE_CSS, {"theme": "does-not-exist"}, "html")

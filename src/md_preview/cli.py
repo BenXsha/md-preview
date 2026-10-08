@@ -470,6 +470,19 @@ def _find_chromium() -> str | None:
     return None
 
 
+def _needs_no_sandbox() -> bool:
+    """受限环境里 Chromium 的沙箱会 SIGABRT（CI 容器、以 root 运行等），需要显式关掉。
+
+    只在 CI（设置了 CI 环境变量）或以 root 运行时关闭；普通桌面用户保持沙箱开启。
+    """
+    if os.environ.get("CI"):
+        return True
+    try:
+        return os.geteuid() == 0
+    except AttributeError:  # 非 POSIX 平台
+        return False
+
+
 def to_pdf(html_path: pathlib.Path, outdir: pathlib.Path, pdf_path: pathlib.Path, sig: str) -> pathlib.Path | None:
     stamp = outdir / ".stamp"
     if pdf_path.exists() and stamp.exists() and stamp.read_text(encoding="utf-8") == sig:
@@ -492,6 +505,8 @@ def to_pdf(html_path: pathlib.Path, outdir: pathlib.Path, pdf_path: pathlib.Path
         f"--print-to-pdf={pdf_path}",
         html_path.as_uri(),
     ]
+    if _needs_no_sandbox():
+        cmd.append("--no-sandbox")
     try:
         result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=180)
     except subprocess.TimeoutExpired:

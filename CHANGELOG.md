@@ -32,6 +32,8 @@
   现在声明 `markdown-it-py[linkify]` 依赖，并在缺少可选的 `linkify-it-py` 时自动关闭裸 URL 自动链接，
   而不是报错；新增对应回归测试。
 - 无头浏览器未能生成 PDF 时，把它的 stderr 末行打到 stderr，便于定位（CI、无沙箱环境等）。
+- CI/容器/以 root 运行时 Chromium 的沙箱会直接 SIGABRT（日志里是 `zygote_linux.cc: write: Broken pipe`），
+  现在这种环境会自动补上 `--no-sandbox`（普通桌面用户不动，沙箱保持开启），并加了单元测试。
 ## [0.1.0] - 2025-10-08
 
 首个可用版本。出发点：Dolphin 中键预览 Markdown 时的渲染不好看，而阅读器的 Markdown 后端只允许改字体。
