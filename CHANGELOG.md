@@ -2,6 +2,14 @@
 
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号用 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Added
+
+- `contrib/set-repo-metadata.py`：把「仓库简介与话题」「按 CHANGELOG 建 Release」「删除调试分支」
+  这三件必须走 GitHub API 的事收成一条命令（`--dry-run` 无需 token 即可预览将要做的事）。
+  权限说明与用法见脚本头部；token 用完请立刻撤销。
+
 ## [0.4.0] - 2025-10-08
 
 **YAML 头部（front matter）** 不再被渲染成一条孤立分隔线加一个被吃坏的标题，而是渲染成一张信息卡 ——

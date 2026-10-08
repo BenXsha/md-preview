@@ -460,6 +460,24 @@ def test_end_to_end_math_and_mermaid(tmp_path, monkeypatch):
     assert b"KaTeX" in data  # KaTeX 字体已内嵌 → 公式真的排版进 PDF 了
 
 
+# ------------------------------------------------------------------ 发布辅助脚本
+def test_release_helper_reads_changelog(capsys):
+    module = load_module("set_repo_metadata", REPO / "contrib" / "set-repo-metadata.py")
+
+    found = module.versions()
+    assert found[0] == "0.4.0" and "0.1.0" in found
+    assert found == sorted(found, key=lambda v: [int(x) for x in v.split(".")], reverse=True)
+
+    notes = module.release_notes("0.2.1")
+    assert notes is not None and notes.startswith("## [0.2.1]") and "linkify" in notes
+    assert module.release_notes("9.9.9") is None
+
+    assert module.main(["--dry-run"]) == 0
+    printed = capsys.readouterr().out
+    assert "one middle-click preview in KDE Dolphin" in printed
+    assert "v0.4.0" in printed and "话题" in printed
+
+
 # ------------------------------------------------------------------ mimeapps 合并
 def test_merge_mimeapps_preserves_rest_and_is_reversible(tmp_path):
     module = load_module("merge_mimeapps", REPO / "contrib" / "merge-mimeapps.py")
