@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""源码仓库里直接运行：把 src/ 放进 sys.path 后调用 md-preview 入口。
+
+    ./bin/md-preview --theme newsprint README.md
+    ./bin/md-preview --html --theme night docs/notes.md
+"""
+
+from __future__ import annotations
+
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
+
+from md_preview.cli import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,188 @@
+/* md-preview 样式：~/.config/md-preview/style.css  —— 改这里就能改预览外观 */
+@page {
+  size: A4;
+  margin: 18mm 16mm 16mm 16mm;
+}
+
+:root {
+  --fg: #1f2328;
+  --fg-muted: #59636e;
+  --bg: #ffffff;
+  --bg-soft: #f6f8fa;
+  --border: #d1d9e0;
+  --accent: #0969da;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  color: var(--fg);
+  background: var(--bg);
+  font-family: "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei",
+               "PingFang SC", "Segoe UI", system-ui, sans-serif;
+  line-height: 1.75;
+  text-align: justify;
+  hyphens: auto;
+}
+
+article {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+/* ---------- 标题 ---------- */
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.3;
+  margin: 1.8em 0 0.6em;
+  font-weight: 600;
+  text-align: left;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+h1 {
+  font-size: 1.8em;
+  padding-bottom: 0.3em;
+  border-bottom: 2px solid var(--border);
+  margin-top: 0;
+}
+
+h2 {
+  font-size: 1.45em;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--border);
+}
+
+h3 { font-size: 1.2em; }
+h4 { font-size: 1.05em; color: var(--fg-muted); }
+
+/* ---------- 正文元素 ---------- */
+p { margin: 0.7em 0; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+strong { font-weight: 600; }
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.8em 0;
+}
+
+ul, ol { padding-left: 1.6em; margin: 0.6em 0; }
+li { margin: 0.25em 0; }
+li > p { margin: 0.25em 0; }
+
+/* 任务列表 */
+li > input[type="checkbox"] { margin-right: 0.4em; }
+
+/* ---------- 引用块 ---------- */
+blockquote {
+  margin: 1em 0;
+  padding: 0.2em 1em;
+  color: var(--fg-muted);
+  border-left: 4px solid var(--border);
+  background: var(--bg-soft);
+  border-radius: 0 4px 4px 0;
+}
+
+/* ---------- 代码 ---------- */
+code, pre, kbd, samp {
+  font-family: "JetBrains Mono", "Fira Code", "DejaVu Sans Mono",
+               "Noto Sans Mono CJK SC", monospace;
+  font-size: 0.88em;
+}
+
+:not(pre) > code {
+  background: var(--bg-soft);
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+pre {
+  margin: 1em 0;
+  padding: 0.9em 1em;
+  overflow-x: auto;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  line-height: 1.55;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+pre code { background: none; border: none; padding: 0; font-size: 1em; }
+
+/* ---------- 表格 ---------- */
+table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+  font-size: 0.94em;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.45em 0.7em;
+  text-align: left;
+  vertical-align: top;
+}
+
+th { background: var(--bg-soft); font-weight: 600; }
+tbody tr:nth-child(even) { background: #fbfcfd; }
+
+/* ---------- 图片 ---------- */
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+/* ---------- 屏幕阅读专用微调 ---------- */
+@media screen {
+  body { background: #f2f4f7; }
+  article {
+    background: var(--bg);
+    margin: 2rem auto;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
+  }
+}
+
+/* ---------- 深色（屏幕） ---------- */
+@media screen and (prefers-color-scheme: dark) {
+  :root {
+    --fg: #e6edf3;
+    --fg-muted: #9198a1;
+    --bg: #1c2128;
+    --bg-soft: #262c36;
+    --border: #444c56;
+    --accent: #6cb6ff;
+  }
+  body { background: #14181f; }
+  tbody tr:nth-child(even) { background: #21262d; }
+}
+
+/* ---------- 打印：始终浅色 ---------- */
+@media print {
+  :root {
+    --fg: #1f2328;
+    --fg-muted: #59636e;
+    --bg: #ffffff;
+    --bg-soft: #f6f8fa;
+    --border: #d1d9e0;
+    --accent: #0969da;
+  }
+  body { background: #fff; }
+  article { max-width: none; margin: 0; padding: 0; box-shadow: none; border-radius: 0; }
+  a { color: var(--fg); text-decoration: underline; }
+}

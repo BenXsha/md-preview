@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Markdown Preview (PDF)
+Name[zh_CN]=Markdown 预览（PDF）
+Comment=Render Markdown with a Typora theme and open the styled PDF
+Comment[zh_CN]=用 Typora 主题渲染 Markdown，并打开带样式的 PDF
+Exec=@BIN@ %f
+Icon=text-markdown
+Terminal=false
+MimeType=text/markdown;text/x-markdown;
+Categories=Qt;KDE;Graphics;Viewer;
+InitialPreference=7
+X-KDE-Keywords=Markdown,预览,Preview
