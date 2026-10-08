@@ -2,6 +2,46 @@
 
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号用 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.3.0] - 2025-10-08
+
+内容能力补齐：**数学公式**（KaTeX）与 **Mermaid 图表** 可以在 HTML 与 PDF 里正常渲染了；
+代码高亮本来就有（Pygments），这次一并做了端到端验证。
+
+### Added
+
+- **公式**：`$…$` / `$$…$$` 由自定义 markdown-it 规则转成占位元素（避免 Markdown 先把 `$x_i$` 吃成斜体），
+  再由浏览器里的 KaTeX 渲染；`$5`、`$100` 这类货币不会被误判；代码块里的 `$` 不受影响。
+- **图表**：` ```mermaid ` 代码块变成 `.mermaid` 容器交给 mermaid 渲染；没有资源时降级为代码块显示。
+  深浅主题会自动切 mermaid 的 `default` / `dark` 主题。
+- **资源获取**：`md-preview --fetch-assets [katex|mermaid|all]`，把 KaTeX（含字体，取自 npm tarball）
+  与 Mermaid 下载到 `~/.config/md-preview/assets/`；查找顺序为
+  `assets_dir` 配置 → `~/.config/md-preview/assets/<kind>` → 系统目录（如 `/usr/share/javascript/katex`）。
+  仓库依旧不打包这些文件（都是 MIT，署名见 THIRD-PARTY.md）。
+- 新配置项：`math` / `mermaid`（auto|off）、`assets_dir`、`js_budget`；新开关 `--no-math`、`--no-mermaid`、
+  `--assets-dir`。
+- PDF 侧：需要 JS 的页面会传 `--virtual-time-budget`（默认 10s，`js_budget` 可调），确保快照前
+  KaTeX/Mermaid 已经渲染完；缓存签名把资源目录与开关一起算进去。
+- 测试：新增公式规则、mermaid 降级、资源解析、开关语义、`js_budget` 解析的单元测试，
+  以及「公式 + 图表端到端 PDF（校验 KaTeX 字体已内嵌）」的集成测试。
+- 单文件安装（只拷 `cli.py`）时 `contrib/install.sh` 会把自带主题也放一份到
+  `~/.config/md-preview/themes/default.css` / `default-dark.css`（已存在则不覆盖，等于给你一份可改的副本）；
+  `theme_path()` 在包里找不到自带主题时会继续到用户主题目录找，因此不会再出现
+  「主题 'default' 不存在」的误导性提示。
+
+### Verified
+
+在本机（Edge + 系统 libjs-katex + 下载的 mermaid 11.17.2）实测：
+
+| 检查 | 结果 |
+| --- | --- |
+| KaTeX 真的渲染 | CDP 读到 6 个 `.katex`（含 1 个 display 块），盒模型 104×22 / 709×44 |
+| 公式进了 PDF | PDF 文本层含 `x2 + y2 = z2`，`pdffonts` 显示内嵌 `KaTeX_Main-Regular` / `KaTeX_Math-Italic` / `KaTeX_Size1-Regular` |
+| Mermaid 真的渲染 | CDP 读到 2 个 `svg`（250×334 流程图 / 450×287 时序图），节点标签为 开始/判断/结束/重试、用户/服务/请求预览/返回 PDF |
+| 图表进了 PDF | 文本层含全部节点标签；第 2 页位图采样到 9238 个节点底色像素 + 418 个描边像素 |
+| 代码高亮 | 同一文档里 63 个着色 span，8 种颜色（关键字/字符串/注释/数字等） |
+| 边界 | `$5`、`$100` 原样保留；代码块内的 `$x$` 不被当公式 |
+| 速度 | 含公式与 2 张图的文档：HTML 生成 0.x s，PDF（2 页）2.1 s |
+
 ## [0.2.1] - 2025-10-08
 
 发布后修掉 CI 暴露出来的问题；功能内容与 0.2.0 相同。

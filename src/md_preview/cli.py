@@ -9,12 +9,18 @@
 任何按这套约定书写的 CSS 都能直接用。自带两个 MIT 许可的主题（`default` / `default-dark`），
 开箱即用、不需要联网；需要更多风格时可安装自己信任的主题文件。
 
+内容能力：代码高亮（Pygments）、数学公式（KaTeX）、Mermaid 图表。后两者需要前端资源，
+仓库不打包、也不会自动联网：用 `md-preview --fetch-assets` 下载到用户目录即可，
+系统若已装 KaTeX（如 Debian/Ubuntu 的 libjs-katex）会自动使用。
+
 用法:
   md-preview FILE.md                渲染成带主题样式的 PDF，用 Okular 打开（默认，带缓存）
   md-preview --html FILE.md         渲染成 HTML，用默认浏览器打开
   md-preview --theme default-dark FILE.md
   md-preview --list-themes          列出可用主题（自带 + 已安装）
   md-preview --fetch-themes         可选：拉取带明确开源许可的社区主题集（见 THIRD-PARTY.md）
+  md-preview --fetch-assets         可选：下载公式/图表用的 KaTeX、Mermaid（都是 MIT）
+  md-preview --no-math --no-mermaid 关闭公式 / 图表渲染
   md-preview --install-theme <URL 或 .css 路径>
   md-preview --theme-dir            打印主题目录（把任意 .css 丢进去即可生效）
   md-preview --version
@@ -23,9 +29,14 @@
     theme      = default       # 默认主题（default / default-dark 为自带主题）
     dark_theme = default-dark  # 浏览器预览时系统为深色模式则换成这个（可留空）
     pdf_theme  =               # PDF 模式专用主题（留空 = 用 theme）
+    math       = auto          # auto / off：公式渲染开关
+    mermaid    = auto          # auto / off：图表渲染开关
+    assets_dir =               # 自定义 KaTeX/Mermaid 所在目录（留空 = 用默认查找顺序）
+    js_budget  = 10000         # 无头浏览器给 JS 渲染留的虚拟时间预算（毫秒）
 
-主题目录: ~/.config/md-preview/themes/   缓存目录: ~/.cache/md-preview/<hash>/
-许可说明: 主题由使用者自行添加；本项目只收录许可明确的来源，详见 THIRD-PARTY.md
+主题目录: ~/.config/md-preview/themes/   资源目录: ~/.config/md-preview/assets/
+缓存目录: ~/.cache/md-preview/<hash>/
+许可说明: 主题与前端资源由使用者添加；本项目只收录许可明确的来源，详见 THIRD-PARTY.md
 """
 
 from __future__ import annotations
@@ -33,12 +44,14 @@ from __future__ import annotations
 import html as html_mod
 import hashlib
 import json
+import io
 import os
 import pathlib
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import unicodedata
 import urllib.request
 
@@ -55,7 +68,7 @@ BUNDLED_THEMES: dict[str, pathlib.Path] = {
     "default": PACKAGE_FALLBACK,
     "default-dark": PACKAGE_FALLBACK_DARK,
 }
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 CHROMIUM_CANDIDATES = [
     "/usr/bin/microsoft-edge-stable",
@@ -115,6 +128,14 @@ code {
   border-radius: 4px;
   font-family: "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono",
                "Noto Sans Mono CJK SC", monospace;
+/* ---- 数学公式与图表（资源缺失时降级为代码块显示） ---- */
+.math-inline { white-space: nowrap; }
+.math-block { margin: 1em 0; text-align: center; overflow-x: auto; overflow-y: hidden; break-inside: avoid; page-break-inside: avoid; }
+.math-block .katex-display { margin: .4em 0; }
+.katex { font-size: 1.06em; }
+pre.mermaid-source { white-space: pre-wrap; font-size: .9em; }
+.mermaid { margin: 1em 0; text-align: center; break-inside: avoid; page-break-inside: avoid; }
+.mermaid svg { max-width: 100%; height: auto; }
 }
 """
 
@@ -153,6 +174,7 @@ TEMPLATE = """<!doctype html>
 }}
 </style>
 {theme_links}
+{asset_links}
 <style>
 {print_css}
 </style>
@@ -210,8 +232,10 @@ def theme_path(name: str) -> pathlib.Path | None:
     if not name:
         return None
     bundled = BUNDLED_THEMES.get(name)
-    if bundled is not None:
-        return bundled if bundled.is_file() else None
+    if bundled is not None and bundled.is_file():
+        return bundled
+    # 单文件安装（只拷了 cli.py）时包里没有自带主题，会继续在用户主题目录里找
+    # （install.sh 会把 default / default-dark 也放一份到那里）
     p = pathlib.Path(name).expanduser()
     if p.is_absolute() or p.suffix == ".css":
         return p if p.is_file() else None
@@ -356,7 +380,7 @@ def is_dark_theme(css_path: pathlib.Path | None) -> bool:
     return bool(re.search(r"dark|night|black", css_path.stem, re.I))
 
 
-def make_markdown():
+def make_markdown(math: bool = False, mermaid: bool = False):
     from markdown_it import MarkdownIt
     from pygments import highlight
     from pygments.formatters import HtmlFormatter
@@ -365,6 +389,13 @@ def make_markdown():
 
     def pyg(code: str, lang: str, _attrs: str = "") -> str:
         lang = (lang or "").strip()
+        if lang.lower() == "mermaid":
+            source = html_mod.escape(code)
+            if mermaid:
+                # mermaid 库自己扫描 .mermaid 元素并把内容换成 SVG
+                return f'<pre class="mermaid">{source}</pre>'
+            # 没有 mermaid 资源时降级成代码块，至少能看清源码
+            return f'<pre class="md-fences mermaid-source"><code class="language-mermaid">{source}</code></pre>'
         try:
             lexer = get_lexer_by_name(lang) if lang else get_lexer_by_name("text")
         except ClassNotFound:
@@ -391,15 +422,243 @@ def make_markdown():
     except ImportError:
         linkify = False
 
-    return MarkdownIt("gfm-like", {"linkify": linkify, "highlight": pyg, "html": True}).enable("table"), HtmlFormatter
+    md = MarkdownIt("gfm-like", {"linkify": linkify, "highlight": pyg, "html": True}).enable("table")
+    if math:
+        _install_math_rules(md)
+    return md, HtmlFormatter
 
 
+# ------------------------------------------------ 可选前端资源（KaTeX 公式 / Mermaid 图表）
+# 与主题同样的策略：仓库不打包这些 JS/CSS，只在需要时下载到用户目录；两者都是 MIT。
+ASSET_SETS: dict[str, dict[str, object]] = {
+    "katex": {
+        "npm": "katex",
+        "version": "0.16.11",
+        "extract": ["dist/katex.min.js", "dist/katex.min.css", "dist/fonts/*.woff2"],
+        "main": "katex.min.js",
+        "license": "KaTeX — MIT, Copyright (c) 2013-2020 Khan Academy and other contributors",
+    },
+    "mermaid": {
+        "url_base": "https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/",
+        "cdn_files": ["mermaid.min.js"],
+        "main": "mermaid.min.js",
+        "license": "Mermaid — MIT, Copyright (c) 2014-2024 Knut Sveidqvist",
+    },
+}
+
+# 已经装到系统里的可以直接用（Debian/Ubuntu 的 libjs-katex 等）
+SYSTEM_ASSET_DIRS: dict[str, list[str]] = {
+    "katex": ["/usr/share/javascript/katex", "/usr/share/nodejs/katex/dist"],
+    "mermaid": ["/usr/share/javascript/mermaid", "/usr/share/nodejs/mermaid/dist"],
+}
+ASSETS_DIR = CONF / "assets"
+
+
+def resolve_assets(kind: str, cfg: dict[str, str]) -> pathlib.Path | None:
+    """找某种前端资源的目录（katex / mermaid），找不到返回 None。
+
+    顺序：配置里的 assets_dir → ~/.config/md-preview/assets/<kind> → 系统目录。
+    """
+    spec = ASSET_SETS.get(kind)
+    if spec is None:
+        return None
+    main = str(spec["main"])
+    candidates: list[pathlib.Path] = []
+    custom = cfg.get("assets_dir", "").strip()
+    if custom:
+        base = pathlib.Path(custom).expanduser()
+        candidates += [base / kind, base]
+    candidates.append(ASSETS_DIR / kind)
+    candidates += [pathlib.Path(p) for p in SYSTEM_ASSET_DIRS.get(kind, [])]
+    for cand in candidates:
+        if (cand / main).is_file():
+            return cand
+    return None
+
+
+def _download_bytes(url: str, timeout: int = 120) -> bytes:
+    return _http_get(url, timeout=timeout)
+
+
+def _extract_from_npm_tarball(spec: dict[str, object], dest: pathlib.Path) -> None:
+    """从 npm tarball 里只取需要的文件（KaTeX 的字体是 CSS 相对引用的，得一起拿）。"""
+    name, version = str(spec["npm"]), str(spec["version"])
+    data = _download_bytes(f"https://registry.npmjs.org/{name}/-/{name}-{version}.tgz")
+    patterns = [str(p) for p in spec["extract"]]  # type: ignore[union-attr]
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
+        for member in tar.getmembers():
+            if not member.isfile():
+                continue
+            rel = member.name.split("/", 1)[-1] if "/" in member.name else member.name  # 去掉 package/
+            if not any(pathlib.PurePosixPath(rel).match(p) for p in patterns):
+                continue
+            out = dest / rel.split("dist/", 1)[-1]  # dist/fonts/x.woff2 → fonts/x.woff2
+            out.parent.mkdir(parents=True, exist_ok=True)
+            handle = tar.extractfile(member)
+            if handle is not None:
+                out.write_bytes(handle.read())
+
+
+def fetch_assets(names: list[str], cfg: dict[str, str] | None = None) -> bool:
+    """把公式/图表用的前端资源下载到用户目录（都是 MIT，见 THIRD-PARTY.md）。"""
+    cfg = cfg or {}
+    custom = cfg.get("assets_dir", "").strip()
+    base = pathlib.Path(custom).expanduser() if custom else ASSETS_DIR
+    targets = names or list(ASSET_SETS)
+    ok = True
+    for name in targets:
+        spec = ASSET_SETS.get(name)
+        if spec is None:
+            print(f"未知资源 {name!r}，可选: {', '.join(ASSET_SETS)}", file=sys.stderr)
+            ok = False
+            continue
+        dest = base / name
+        dest.mkdir(parents=True, exist_ok=True)
+        print(f"[{name}] {spec['license']}")
+        try:
+            if spec.get("npm"):
+                _extract_from_npm_tarball(spec, dest)
+            else:
+                for rel in spec["cdn_files"]:  # type: ignore[union-attr]
+                    dest.joinpath(pathlib.Path(str(rel)).name).write_bytes(
+                        _download_bytes(str(spec["url_base"]) + str(rel))
+                    )
+        except Exception as exc:  # 网络/解包问题都只提示
+            print(f"  下载失败: {exc}", file=sys.stderr)
+            ok = False
+            continue
+        for f in sorted(dest.rglob("*")):
+            if f.is_file():
+                print(f"  ✓ {f.relative_to(dest)}")
+    return ok
+
+
+def _install_math_rules(md) -> None:
+    """把 $…$ / $$…$$ 变成占位元素，交给浏览器里的 KaTeX 渲染。
+
+    这样做而不是直接留着 $ 让 KaTeX 扫描页面，是为了避免 Markdown 先把 `$x_i$` 吃成斜体。
+    """
+
+    def math_inline(state, silent: bool) -> bool:
+        src, start = state.src, state.pos
+        if src[start] != "$" or (start + 1 < state.posMax and src[start + 1] == "$"):
+            return False
+        if start + 1 >= state.posMax or src[start + 1].isspace():
+            return False
+        pos = start + 1
+        while pos < state.posMax:
+            ch = src[pos]
+            if ch == "\\":
+                pos += 2
+                continue
+            if ch == "\n":
+                return False
+            if ch == "$":
+                break
+            pos += 1
+        else:
+            return False
+        if pos >= state.posMax or pos == start + 1 or src[pos - 1].isspace():
+            return False
+        if pos + 1 < state.posMax and src[pos + 1].isdigit():
+            return False  # $5、$100 这类货币不当公式
+        if not silent:
+            token = state.push("math_inline", "span", 0)
+            token.content = src[start + 1 : pos]
+        state.pos = pos + 1
+        return True
+
+    def math_block(state, start_line: int, end_line: int, silent: bool) -> bool:
+        begin = state.bMarks[start_line] + state.tShift[start_line]
+        line = state.src[begin : state.eMarks[start_line]].strip()
+        if not line.startswith("$$"):
+            return False
+        if silent:
+            return True
+        body: list[str] = []
+        first = line[2:]
+        next_line = start_line + 1
+        if first.endswith("$$") and len(first) > 2:  # $$…$$ 写在一行
+            body.append(first[:-2])
+        else:
+            if first:
+                body.append(first)
+            while next_line < end_line:
+                nbegin = state.bMarks[next_line] + state.tShift[next_line]
+                nline = state.src[nbegin : state.eMarks[next_line]]
+                if nline.strip().endswith("$$"):
+                    body.append(nline.strip()[:-2])
+                    next_line += 1
+                    break
+                body.append(nline)
+                next_line += 1
+        token = state.push("math_block", "div", 0)
+        token.content = "\n".join(body).strip()
+        token.map = [start_line, next_line]
+        state.line = next_line
+        return True
+
+    def render_inline(_self, tokens, idx, _options, _env) -> str:
+        return f'<span class="math-inline" data-tex="{html_mod.escape(tokens[idx].content, quote=True)}"></span>'
+
+    def render_block(_self, tokens, idx, _options, _env) -> str:
+        tex = html_mod.escape(tokens[idx].content, quote=True)
+        return f'<div class="math-block" data-tex="{tex}" data-display="1"></div>'
+
+    md.inline.ruler.before("escape", "math_inline", math_inline)
+    md.block.ruler.before("fence", "math_block", math_block)
+    md.add_render_rule("math_inline", render_inline)
+    md.add_render_rule("math_block", render_block)
+
+
+def _asset_links(katex_dir: pathlib.Path | None, mermaid_dir: pathlib.Path | None, is_dark: bool) -> str:
+    """生成资源引用与渲染脚本；只有文档真的用到公式/图表时才注入。"""
+    parts: list[str] = []
+    if katex_dir is not None:
+        css_uri = (katex_dir / "katex.min.css").as_uri()
+        js_uri = (katex_dir / "katex.min.js").as_uri()
+        parts.append('<link rel="stylesheet" href="%s">' % css_uri)
+        parts.append('<script defer src="%s"></script>' % js_uri)
+        parts.append(
+            """<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('[data-tex]').forEach(function (el) {
+    if (!window.katex || !el.dataset.tex) return;
+    try {
+      katex.render(el.dataset.tex, el, {displayMode: el.dataset.display === '1', throwOnError: false, output: 'htmlAndMathml'});
+    } catch (err) { console.error('katex:', err); }
+  });
+});
+</script>"""
+        )
+    if mermaid_dir is not None:
+        theme = "dark" if is_dark else "default"
+        mermaid_uri = (mermaid_dir / "mermaid.min.js").as_uri()
+        parts.append('<script defer src="%s"></script>' % mermaid_uri)
+        parts.append(
+            f"""<script>
+document.addEventListener('DOMContentLoaded', function () {{
+  if (!window.mermaid) return;
+  mermaid.initialize({{startOnLoad: false, theme: {json.dumps(theme)}}});
+  mermaid.run({{nodes: document.querySelectorAll('.mermaid')}}).catch(function (err) {{ console.error('mermaid:', err); }});
+}});
+</script>"""
+        )
+    return "\n".join(parts)
 # ---------------------------------------------------------------- 渲染
 def _theme_link(css_path: pathlib.Path | None, media: str | None = None) -> str:
     if css_path is None:
         return ""
     attr = f' media="{media}"' if media else ""
     return f'<link rel="stylesheet"{attr} href="{css_path.resolve().as_uri()}">'
+
+
+def _flag_on(cfg: dict[str, str], key: str, default: bool = True) -> bool:
+    """读一个开关型配置：math / mermaid，默认开；off/none/0/false/no 视为关。"""
+    value = cfg.get(key, "").strip().lower()
+    if not value:
+        return default
+    return value not in ("off", "none", "0", "false", "no")
 
 
 def render_html(src_path: pathlib.Path, css: str, cfg: dict[str, str], mode: str) -> tuple[pathlib.Path, pathlib.Path, dict]:
@@ -434,8 +693,21 @@ def render_html(src_path: pathlib.Path, css: str, cfg: dict[str, str], mode: str
     outdir.mkdir(parents=True, exist_ok=True)
 
     text = src_path.read_text(encoding="utf-8", errors="replace")
-    md, HtmlFormatter = make_markdown()
+    katex_dir = resolve_assets("katex", cfg) if _flag_on(cfg, "math") else None
+    mermaid_dir = resolve_assets("mermaid", cfg) if _flag_on(cfg, "mermaid") else None
+    md, HtmlFormatter = make_markdown(math=katex_dir is not None, mermaid=mermaid_dir is not None)
     body = _add_heading_ids(md.render(text))
+
+    needs_math = "data-tex=" in body
+    needs_mermaid = '<pre class="mermaid">' in body
+    if needs_math and katex_dir is None:
+        print("md-preview: 文档里有公式但没找到 KaTeX 资源，先按源码显示；"
+              "可运行 md-preview --fetch-assets katex", file=sys.stderr)
+    if 'class="mermaid-source"' in body:
+        print("md-preview: 文档里有 mermaid 图表但没找到 mermaid 资源，先按代码块显示；"
+              "可运行 md-preview --fetch-assets mermaid", file=sys.stderr)
+    use_katex = katex_dir if needs_math else None
+    use_mermaid = mermaid_dir if needs_mermaid else None
 
     title = src_path.stem
     first = re.search(r"<h1[^>]*>(.*?)</h1>", body, re.S)
@@ -446,6 +718,9 @@ def render_html(src_path: pathlib.Path, css: str, cfg: dict[str, str], mode: str
     if dark is not None and dark != active:
         links += "\n" + _theme_link(dark, "screen and (prefers-color-scheme: dark)")
 
+    asset_links = _asset_links(use_katex, use_mermaid, is_dark)
+    uses_js = bool(use_katex or use_mermaid)
+
     html = TEMPLATE.format(
         base=src_path.resolve().parent.as_uri() + "/",
         title=html_mod.escape(title),
@@ -455,12 +730,19 @@ def render_html(src_path: pathlib.Path, css: str, cfg: dict[str, str], mode: str
         pyg_light=HtmlFormatter(style="github-dark" if is_dark else "default").get_style_defs(".md-fences"),
         pyg_dark=HtmlFormatter(style="github-dark").get_style_defs(".md-fences"),
         theme_links=links,
+        asset_links=asset_links,
         print_css=PRINT_CSS,
         body=body,
     )
     html_path = outdir / (src_path.stem + ".html")
     html_path.write_text(html, encoding="utf-8")
-    return html_path, outdir, {"theme": active_name, "theme_file": str(active) if active else "", "dark": str(dark) if dark else ""}
+    return html_path, outdir, {
+        "theme": active_name,
+        "theme_file": str(active) if active else "",
+        "dark": str(dark) if dark else "",
+        "assets": [str(p) for p in (use_katex, use_mermaid) if p is not None],
+        "js": uses_js,
+    }
 
 
 def _find_chromium() -> str | None:
@@ -483,7 +765,15 @@ def _needs_no_sandbox() -> bool:
         return False
 
 
-def to_pdf(html_path: pathlib.Path, outdir: pathlib.Path, pdf_path: pathlib.Path, sig: str) -> pathlib.Path | None:
+def _js_budget(cfg: dict[str, str]) -> int:
+    """给 JS 渲染留的虚拟时间预算（毫秒）；图表复杂的文档可以调大。"""
+    try:
+        return max(0, int(cfg.get("js_budget", "") or 10000))
+    except ValueError:
+        return 10000
+
+
+def to_pdf(html_path: pathlib.Path, outdir: pathlib.Path, pdf_path: pathlib.Path, sig: str, js_budget: int = 0) -> pathlib.Path | None:
     stamp = outdir / ".stamp"
     if pdf_path.exists() and stamp.exists() and stamp.read_text(encoding="utf-8") == sig:
         return pdf_path
@@ -505,6 +795,9 @@ def to_pdf(html_path: pathlib.Path, outdir: pathlib.Path, pdf_path: pathlib.Path
         f"--print-to-pdf={pdf_path}",
         html_path.as_uri(),
     ]
+    if js_budget > 0:
+        # 给要跑 JS 的页面（KaTeX 公式、Mermaid 图表）留出渲染时间再快照
+        cmd.append(f"--virtual-time-budget={int(js_budget)}")
     if _needs_no_sandbox():
         cmd.append("--no-sandbox")
     try:
@@ -610,6 +903,10 @@ def run(args: list[str]) -> int:
         i = args.index("--fetch-themes")
         wanted = [a for a in args[i + 1 :] if not a.startswith("-")] or list(THEME_SETS)
         return 0 if fetch_themes(wanted) else 1
+    if "--fetch-assets" in args:
+        i = args.index("--fetch-assets")
+        wanted = [a for a in args[i + 1 :] if not a.startswith("-")] or list(ASSET_SETS)
+        return 0 if fetch_assets(wanted, read_config()) else 1
     # --- 简单选项 ---
     if "--list-themes" in args:
         for t in list_themes():
@@ -645,12 +942,22 @@ def run(args: list[str]) -> int:
             mode = "html"
 
     cfg = read_config()
-    for opt, key in (("--theme", "theme"), ("--dark-theme", "dark_theme"), ("--pdf-theme", "pdf_theme")):
+    for opt, key in (
+        ("--theme", "theme"),
+        ("--dark-theme", "dark_theme"),
+        ("--pdf-theme", "pdf_theme"),
+        ("--assets-dir", "assets_dir"),
+    ):
         if opt in args:
             i = args.index(opt)
             if i + 1 < len(args):
                 cfg[key] = args[i + 1]
                 del args[i : i + 2]
+
+    for flag, key in (("--no-math", "math"), ("--no-mermaid", "mermaid")):
+        if flag in args:
+            args.remove(flag)
+            cfg[key] = "off"
 
     if not args or args[0] in ("-h", "--help"):
         print(__doc__)
@@ -672,14 +979,15 @@ def run(args: list[str]) -> int:
 
         # 缓存签名：源文件 mtime + 脚本自身 + 主题文件 + 配置
         sig_parts = [str(BRIDGE_VERSION), str(src.stat().st_mtime_ns), str(pathlib.Path(__file__).stat().st_mtime_ns)]
-        for p in (meta["theme_file"], meta["dark"]):
-            if p and pathlib.Path(p).is_file():
+        for p in [meta["theme_file"], meta["dark"], *meta.get("assets", [])]:
+            if p and pathlib.Path(p).exists():
                 st = pathlib.Path(p).stat()
                 sig_parts += [p, str(st.st_mtime_ns), str(st.st_size)]
+        sig_parts += [str(cfg.get("math", "auto")), str(cfg.get("mermaid", "auto"))]
         sig = hashlib.sha1(":".join(sig_parts).encode("utf-8")).hexdigest()
 
         pdf_path = outdir / (src.stem + ".pdf")
-        pdf = to_pdf(html_path, outdir, pdf_path, sig)
+        pdf = to_pdf(html_path, outdir, pdf_path, sig, js_budget=_js_budget(cfg) if meta.get("js") else 0)
 
         if pdf is None:
             subprocess.Popen(["xdg-open", str(html_path)], start_new_session=True)

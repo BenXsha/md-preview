@@ -130,6 +130,16 @@ def test_list_themes_ignores_asset_subdirs(tmp_path, monkeypatch):
     assert "font" not in cli.list_themes()  # 资源子目录里的 font.css 不算主题
 
 
+def test_bundled_theme_falls_back_to_user_dir(tmp_path, monkeypatch):
+    """单文件安装（包里没有自带主题）时，同名主题应落到用户主题目录。"""
+    (tmp_path / "default.css").write_text("body{}", encoding="utf-8")
+    monkeypatch.setattr(cli, "THEMES", tmp_path)
+    monkeypatch.setattr(cli, "BUNDLED_THEMES", {"default": tmp_path / "not-there.css"})
+    assert cli.theme_path("default") == tmp_path / "default.css"
+
+
+
+
 def test_fetch_themes_rejects_unknown_set(capsys):
     assert cli.fetch_themes(["nope"]) is False
     assert "未知主题集" in capsys.readouterr().err
@@ -214,6 +224,63 @@ def test_no_sandbox_only_in_restricted_environments(monkeypatch):
     assert cli._needs_no_sandbox() is True
 
 
+# ------------------------------------------------------------------ 公式与图表
+MATH_MD = "行内 $x^2$ 与货币 $5，代码块不受影响：\n\n```python\ns = '$x$'\n```\n\n$$\n\\frac{a}{b}\n$$\n"
+
+
+def test_math_rules_render_placeholders():
+    md, _ = cli.make_markdown(math=True)
+    html = md.render(MATH_MD)
+    assert 'class="math-inline"' in html and 'data-tex="x^2"' in html
+    assert 'class="math-block"' in html and "\\frac{a}{b}" in html
+    assert "$5" in html  # 货币不当公式
+    assert 'class="md-fences"' in html and "$x$" in html  # 代码块里的 $ 不动（注意引号被 HTML 转义）
+
+
+def test_math_rules_off_keeps_source():
+    md, _ = cli.make_markdown(math=False)
+    html = md.render(MATH_MD)
+    assert "math-inline" not in html and "math-block" not in html
+
+
+def test_mermaid_fence_depends_on_assets():
+    with_assets, _ = cli.make_markdown(mermaid=True)
+    without, _ = cli.make_markdown(mermaid=False)
+    fence = "```mermaid\ngraph TD\n    A[开始] --> B[结束]\n```\n"
+    assert '<pre class="mermaid">' in with_assets.render(fence)
+    assert "mermaid-source" in without.render(fence)  # 缺资源时降级为代码块
+
+
+def test_flag_on_defaults_and_off_values():
+    assert cli._flag_on({}, "math") is True
+    assert cli._flag_on({"math": "auto"}, "math") is True
+    for value in ("off", "none", "0", "false", "no", "OFF"):
+        assert cli._flag_on({"math": value}, "math") is False
+
+
+def test_resolve_assets_prefers_custom_dir(tmp_path, monkeypatch):
+    custom = tmp_path / "assets"
+    (custom / "katex").mkdir(parents=True)
+    (custom / "katex" / "katex.min.js").write_text("//", encoding="utf-8")
+    monkeypatch.setattr(cli, "ASSETS_DIR", tmp_path / "empty")
+    monkeypatch.setattr(cli, "SYSTEM_ASSET_DIRS", {})
+    assert cli.resolve_assets("katex", {"assets_dir": str(custom)}) == custom / "katex"
+    assert cli.resolve_assets("katex", {}) is None  # 哪里都没有就当没有
+    assert cli.resolve_assets("unknown-kind", {}) is None
+
+
+def test_js_budget_from_config():
+    assert cli._js_budget({}) == 10000
+    assert cli._js_budget({"js_budget": "2500"}) == 2500
+    assert cli._js_budget({"js_budget": "abc"}) == 10000
+    assert cli._js_budget({"js_budget": "-1"}) == 0
+
+
+def test_fetch_assets_rejects_unknown(capsys):
+    assert cli.fetch_assets(["nope"]) is False
+    assert "未知资源" in capsys.readouterr().err
+
+
 def test_render_html_falls_back_without_theme(tmp_path, monkeypatch):
     _prepare(tmp_path, monkeypatch, None)
     html_path, _, _ = cli.render_html(SAMPLE, cli.BASE_CSS, {"theme": "does-not-exist"}, "html")
@@ -244,6 +311,37 @@ def test_end_to_end_pdf(tmp_path, monkeypatch):
     assert len(data) > 2000
     # 第二次调用命中缓存（不再调用浏览器）
     assert cli.to_pdf(html_path, outdir, pdf, "test-sig") == pdf
+
+
+@pytest.mark.skipif(
+    cli._find_chromium() is None
+    or cli.resolve_assets("katex", {}) is None
+    or cli.resolve_assets("mermaid", {}) is None,
+    reason="需要 Chromium 系浏览器 + KaTeX/Mermaid 资源（md-preview --fetch-assets）",
+)
+def test_end_to_end_math_and_mermaid(tmp_path, monkeypatch):
+    """公式与图表：HTML 里有占位元素、PDF 里有内嵌 KaTeX 字体与图表标签。"""
+    _prepare(tmp_path, monkeypatch, None)
+    doc = tmp_path / "features.md"
+    doc.write_text(
+        "# 标题\n\n行内公式 $x^2+y^2=z^2$，价格 $5 不应被当公式。\n\n$$\n\\frac{a}{b}\n$$\n\n"
+        "```mermaid\ngraph TD\n    A[开始] --> B[结束]\n```\n",
+        encoding="utf-8",
+    )
+    html_path, outdir, meta = cli.render_html(doc, cli.BASE_CSS, {"theme": ""}, "pdf")
+    html = html_path.read_text(encoding="utf-8")
+
+    assert meta["js"] is True and len(meta["assets"]) == 2
+    assert html.count('class="math-inline"') == 1
+    assert html.count('class="math-block"') == 1
+    assert '<pre class="mermaid">' in html
+    assert "$5" in html  # 货币没被吃掉
+
+    pdf = outdir / f"{doc.stem}.pdf"
+    assert cli.to_pdf(html_path, outdir, pdf, "feat-sig", js_budget=cli._js_budget({})) == pdf
+    data = pdf.read_bytes()
+    assert data.startswith(b"%PDF")
+    assert b"KaTeX" in data  # KaTeX 字体已内嵌 → 公式真的排版进 PDF 了
 
 
 # ------------------------------------------------------------------ mimeapps 合并

@@ -45,6 +45,11 @@ jobs:
             echo "no chromium-based browser → the end-to-end test will skip itself"
           fi
 
+
+      # 可选：公式/图表资源（失败不影响其它测试，相关用例会自行跳过）
+      - name: Optional front-end assets (KaTeX + Mermaid)
+        continue-on-error: true
+        run: md-preview --fetch-assets
       - name: Test
         id: test
         continue-on-error: true

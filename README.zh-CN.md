@@ -36,6 +36,9 @@ KDE 里对文件按鼠标中键，打开的是**该 MIME 类型应用列表里�
   让深色底和代码块底色在 PDF 里不丢。
 - **依赖轻** —— Python + `markdown-it-py` + `Pygments`；PDF 用无头 Chromium（自动探测
   Edge/Chrome/Chromium/Brave）；没有 Chromium 时自动退回浏览器预览。
+- **公式与图表** —— `$…$` / `$$…$$` 交给 KaTeX，` ```mermaid ` 代码块交给 Mermaid 渲染。
+  两者都按需下载（`md-preview --fetch-assets`）、仓库不打包；缺资源时降级为源码显示而不是报错。
+  深色主题会自动切换到 Mermaid 的 dark 主题。
 
 ## 安装
 
@@ -75,6 +78,7 @@ $ install -Dm755 src/md_preview/cli.py ~/.local/bin/md-preview
 | Chromium 系浏览器 | PDF 引擎（`--headless=new --print-to-pdf`），自动探测 Edge/Chrome/Chromium/Brave |
 | Okular 或任意 PDF 阅读器 | 看生成的 PDF；没有就退回浏览器 |
 | Pillow、websockets（可选） | 只有 `tools/theme-gallery.py`、`tools/probe-styles.py` 用 |
+| KaTeX / Mermaid（可选） | 公式与图表渲染；`md-preview --fetch-assets`，系统已装的 `libjs-katex` 也会被使用 |
 
 ## 在 KDE 里怎么用
 
@@ -92,6 +96,7 @@ $ md-preview notes.md                # 生成带主题的 PDF，用 Okular 打�
 $ md-preview --html notes.md         # 生成带主题的 HTML，用浏览器打开
 $ md-preview --theme default-dark notes.md
 $ md-preview --list-themes
+$ md-preview --fetch-assets katex mermaid  # 可选：启用公式与图表（MIT 资源）
 ```
 
 在 Dolphin 里右键 `.md`，还能从服务菜单直接选 **Markdown 预览（PDF / 浏览器）**。
@@ -147,6 +152,24 @@ $ python3 tools/theme-gallery.py     # 每个主题一张 PNG，并拼成一张�
 - 有些主题把页面底色交给宿主应用，自己只定义 `--bg-color`。这种情况 md-preview 会补上
   `body { background-color: var(--bg-color, …) }`，并按深色主题处理。
 
+## 公式与图表
+
+```console
+$ md-preview --fetch-assets              # 下载 KaTeX（含字体）+ Mermaid 到 ~/.config/md-preview/assets/
+$ md-preview notes.md                    # $…$、$$…$$ 与 ```mermaid 代码块都能渲染了
+$ md-preview --no-math --no-mermaid notes.md
+```
+
+- 行内 `$…$` 与块级 `$$…$$` 会先被转成 HTML 里的占位元素（这样 Markdown 不会把 `$x_i$` 吃成斜体），
+  再由浏览器里的 KaTeX 渲染；`$5`、`$100` 这类货币保持原样。
+- ` ```mermaid ` 代码块变成 `.mermaid` 容器交给 Mermaid 渲染，流程图/时序图/甘特图/类图/状态图都可用；
+  深色主题自动使用 Mermaid 的 dark 主题。
+- 资源查找顺序：配置里的 `assets_dir` → `~/.config/md-preview/assets/<kind>` → 系统目录
+  （例如 `libjs-katex` 装出来的 `/usr/share/javascript/katex`）。
+- 转 PDF 时会给页面留一段虚拟时间预算（`js_budget`，默认 10 秒）等 JS 渲染完再快照；
+  缺资源时降级为源码显示，并在 stderr 给出提示。
+- 代码高亮不需要这些：Pygments 在服务端跑，token 类名跟着主题走（见上文）。
+
 ## 配置
 
 `~/.config/md-preview/config`：
@@ -186,10 +209,14 @@ pdf_theme  =                # PDF 模式专用主题（留空 = 同 theme）
 | 打印不受网页栏宽限制 | 墨迹横向占 A4 页宽 85%，两侧留白 7–8%（与 `@page 16mm` 一致） |
 | 中文可复制可搜索 | `pdftotext` 能抽取正文中文 |
 | 速度 | 20 KB / 12 页文档：HTML 0.22 s，PDF 冷启 2.8 s，缓存命中 0.000 s |
+| 公式真的渲染 | CDP 读到 6 个 `.katex`（含 1 个 display 块），盒模型 104×22 / 709×44 |
+| 公式进了 PDF | 文本层含 `x2 + y2 = z2`；`pdffonts` 显示内嵌 `KaTeX_Main-Regular` / `KaTeX_Math-Italic` / `KaTeX_Size1-Regular` |
+| 图表真的渲染 | CDP 读到 2 个 `<svg>`（250×334 流程图、450×287 时序图），节点标签 开始/判断/结束/重试、用户/服务/请求预览/返回 PDF |
+| 图表进了 PDF | 文本层含全部节点标签；第 2 页位图采样到 9238 个节点底色 + 418 个描边像素 |
+| 代码高亮 | 63 个着色 token span，8 种颜色（关键字/字符串/注释/数字…） |
 
 ## 已知限制
 
-- 没有数学公式渲染（KaTeX/MathJax），`$…$` 原样显示。
 - 任务列表 `- [x]` 不会渲染成勾选框（需要额外的 markdown-it 插件）。
 - Okular 的批注落在缓存 PDF 上；源文件改动后 PDF 会重新生成，Okular 按路径保存的批注可能错位。
   需要长期批注的文档建议用 `--html` 阅读。

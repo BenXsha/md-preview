@@ -36,6 +36,8 @@ their upstream repositories into the user's own config directory. The two bundle
 | [markdown-it-py](https://github.com/executablebooks/markdown-it-py) | MIT |
 | [linkify-it-py](https://github.com/tsutsu3/linkify-it-py)（`markdown-it-py[linkify]` 会带上；缺失时自动关闭自动链接功能） | MIT |
 | [Pygments](https://pygments.org/) | BSD-2-Clause |
+| [KaTeX](https://katex.org/)（可选，`md-preview --fetch-assets katex`；Debian/Ubuntu 也有 `libjs-katex` + `fonts-katex`） | MIT, Copyright (c) 2013-2020 Khan Academy and other contributors |
+| [Mermaid](https://mermaid.js.org/)（可选，`md-preview --fetch-assets mermaid`） | MIT, Copyright (c) 2014-2024 Knut Sveidqvist |
 | Chromium 系浏览器（Edge / Chrome / Chromium / Brave，仅作为无头 PDF 引擎调用） | 各自许可 |
 | Okular（可选，用于查看生成的 PDF） | GPL-2.0-or-later |
 | Pillow（可选，仅 `tools/theme-gallery.py`） | HPND |

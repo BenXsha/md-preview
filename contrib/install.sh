@@ -59,6 +59,16 @@ else
     install -Dm644 "$REPO_DIR/src/md_preview/fallback.css" "$CONF_DIR/style.css"
     echo "   写入 $CONF_DIR/style.css"
 fi
+# 单文件安装时包里没有自带主题，这里放一份到主题目录（已存在则保留用户改动）
+for pair in "fallback.css:default.css" "fallback-dark.css:default-dark.css"; do
+    src_name="${pair%%:*}"; dst_name="${pair##*:}"
+    if [ -f "$CONF_DIR/themes/$dst_name" ]; then
+        echo "   保留已有 $CONF_DIR/themes/$dst_name"
+    else
+        install -Dm644 "$REPO_DIR/src/md_preview/$src_name" "$CONF_DIR/themes/$dst_name"
+        echo "   写入 $CONF_DIR/themes/$dst_name（自带主题，可自行修改）"
+    fi
+done
 if [ -f "$CONF_DIR/config" ]; then
     echo "   保留已有 $CONF_DIR/config"
 else
@@ -71,8 +81,14 @@ else
 #              可选：md-preview --fetch-themes drake mdmdt 拉取 MIT/Apache-2.0 社区主题集。
 # dark_theme : 浏览器预览时，系统切到深色模式则替换成这个（留空 = 不换）
 # pdf_theme  : PDF 模式专用主题（留空 = 同 theme）。想让 Okular 里也走深色就填 default-dark
+# math       : auto / off —— 数学公式（KaTeX）渲染开关
+# mermaid    : auto / off —— Mermaid 图表渲染开关
+# assets_dir : 自定义 KaTeX / Mermaid 所在目录（留空 = 默认查找顺序）
+# js_budget  : 转 PDF 时给 JS 渲染留的毫秒预算（默认 10000）
 theme      = default
 dark_theme = default-dark
+math       = auto
+mermaid    = auto
 pdf_theme  =
 EOF
     echo "   写入 $CONF_DIR/config"

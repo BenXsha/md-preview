@@ -39,6 +39,9 @@ keeps doing what it is good at (reading, zooming, annotating).
   `print-color-adjust: exact` so dark backgrounds and code blocks survive into the PDF.
 - **Linux-friendly** — Python + `markdown-it-py` + `Pygments`; PDF via headless Chromium (Edge/Chrome/Chromium/
   Brave, auto-detected); falls back to a browser preview if no Chromium is available.
+- **Math and diagrams** — `$…$` / `$$…$$` are rendered by KaTeX, ` ```mermaid ` fences by Mermaid.
+  Both are fetched on demand (`md-preview --fetch-assets`) and never bundled; without them the source is shown
+  as plain text/code instead of failing. Dark themes switch Mermaid to its dark theme automatically.
 
 ## Install
 
@@ -78,6 +81,7 @@ $ install -Dm755 src/md_preview/cli.py ~/.local/bin/md-preview
 | a Chromium-based browser | PDF engine (`--headless=new --print-to-pdf`); Edge/Chrome/Chromium/Brave are auto-detected |
 | Okular (or any PDF viewer) | reading the generated PDF; without one the browser is used |
 | Pillow, websockets (optional) | only for `tools/theme-gallery.py` and `tools/probe-styles.py` |
+| KaTeX / Mermaid (optional) | math and diagram rendering; `md-preview --fetch-assets` (a system `libjs-katex` is also picked up) |
 
 ## Using it in KDE
 
@@ -95,6 +99,7 @@ $ md-preview notes.md                # themed PDF, opens in Okular (cached)
 $ md-preview --html notes.md         # themed HTML, opens in your browser
 $ md-preview --theme default-dark notes.md
 $ md-preview --list-themes
+$ md-preview --fetch-assets katex mermaid  # optional: enable math + diagrams (MIT bundles)
 ```
 
 Right-clicking a `.md` in Dolphin also offers **Markdown Preview (PDF / Browser)** from the service menu.
@@ -151,6 +156,25 @@ Two notes from hard-won experience:
 - Some themes leave the page colour to the host application and only define `--bg-color`; md-preview injects
   `body { background-color: var(--bg-color, …) }` in that case and treats the theme as dark.
 
+## Math and diagrams
+
+```console
+$ md-preview --fetch-assets              # KaTeX (with fonts) + Mermaid → ~/.config/md-preview/assets/
+$ md-preview notes.md                    # $…$, $$…$$ and ```mermaid fences now render
+$ md-preview --no-math --no-mermaid notes.md
+```
+
+- Inline `$…$` and display `$$…$$` math are turned into placeholder elements in the HTML (so Markdown cannot
+  mangle `$x_i$` into italics) and rendered by KaTeX inside the browser; `$5` / `$100` stay literal text.
+- ` ```mermaid ` fences become `.mermaid` containers rendered by Mermaid; flowchart, sequence, gantt, class and
+  state diagrams all work. Dark themes get Mermaid's `dark` theme.
+- Asset lookup order: `assets_dir` from the config → `~/.config/md-preview/assets/<kind>` → system directories
+  (e.g. `/usr/share/javascript/katex` from the `libjs-katex` package).
+- For the PDF path the page is given a virtual-time budget (`js_budget`, default 10 s) so the JS rendering
+  finishes before the snapshot; missing assets degrade gracefully to plain source plus a hint on stderr.
+- Code highlighting needs none of this: Pygments runs server-side, and the token classes it emits follow the
+  theme (see above).
+
 ## Configuration
 
 `~/.config/md-preview/config`:
@@ -193,10 +217,14 @@ Measured on Ubuntu 26.04 / KDE Gear 25.12.3 (Edge + Firefox), using `tools/probe
 | Print ignores web column widths | ink spans 85 % of the A4 page width, 7–8 % side margins (matches `@page 16mm`) |
 | Chinese text stays selectable | extracted with `pdftotext` |
 | Speed | 20 KB / 12-page document: HTML 0.22 s, PDF cold 2.8 s, cached 0.000 s |
+| Math really renders | CDP probe: 6 `.katex` elements (1 display block), boxes 104×22 / 709×44 |
+| Math reaches the PDF | text layer contains `x2 + y2 = z2`; `pdffonts` shows embedded `KaTeX_Main-Regular` / `KaTeX_Math-Italic` / `KaTeX_Size1-Regular` |
+| Diagrams really render | CDP probe: 2 `<svg>` (250×334 flowchart, 450×287 sequence) with node labels 开始/判断/结束/重试 and 用户/服务/请求预览/返回 PDF |
+| Diagrams reach the PDF | all node labels in the text layer; page 2 bitmap has 9238 node-fill + 418 stroke pixels |
+| Code highlighting | 63 coloured token spans in 8 distinct colours (keyword/string/comment/number…) |
 
 ## Known limitations
 
-- No math rendering (KaTeX/MathJax); `$…$` is shown literally.
 - Task lists (`- [x]`) are not turned into checkboxes (needs an extra markdown-it plugin).
 - Okular annotations attach to the cached PDF; when the source changes the PDF is regenerated and
   Okular's per-path annotation file may drift. Use `--html` for documents you annotate long-term.
