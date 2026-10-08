@@ -1,4 +1,4 @@
-"""md-preview —— 用 Typora 主题把 Markdown 渲染成带样式的 PDF / HTML。
+"""md-preview —— 用纯 CSS 主题把 Markdown 渲染成带样式的 PDF / HTML。
 
 设计目标是「中键一点就能看」：默认转成 PDF 交给 Okular，或用浏览器打开 HTML。
 """

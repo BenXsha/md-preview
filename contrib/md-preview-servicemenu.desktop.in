@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=KonqPopupMenu/Plugin
+MimeType=text/markdown;text/x-markdown;
+Actions=previewPdf;previewHtml;
+X-KDE-Priority=TopLevel
+
+[Desktop Action previewPdf]
+Name=Markdown Preview (PDF)
+Name[zh_CN]=Markdown 预览（PDF）
+Icon=text-markdown
+Exec=@BIN@ %f
+
+[Desktop Action previewHtml]
+Name=Markdown Preview (Browser)
+Name[zh_CN]=Markdown 预览（浏览器）
+Icon=text-html
+Exec=@BIN@ --html %f

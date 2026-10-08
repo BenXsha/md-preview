@@ -8,6 +8,7 @@ BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
 CONF_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 APP_DIR="$DATA_DIR/applications"
+SERVICE_DIR="$DATA_DIR/kio/servicemenus"
 CONF_DIR="$CONF_HOME/md-preview"
 MIMEAPPS="$CONF_HOME/mimeapps.list"
 MIMES=(text/markdown text/x-markdown)
@@ -40,13 +41,17 @@ if command -v kbuildsycoca6 >/dev/null 2>&1; then
     echo "   已刷新 KDE 服务缓存 (kbuildsycoca6)"
 fi
 
-echo "== 删除 desktop 项与脚本 =="
+echo "== 删除 desktop 项、服务菜单与脚本 =="
 for name in md-preview.desktop md-preview-browser.desktop; do
     if [ -f "$APP_DIR/$name" ]; then
         rm -f "$APP_DIR/$name"
         echo "   rm $APP_DIR/$name"
     fi
 done
+if [ -f "$SERVICE_DIR/md-preview-servicemenu.desktop" ]; then
+    rm -f "$SERVICE_DIR/md-preview-servicemenu.desktop"
+    echo "   rm $SERVICE_DIR/md-preview-servicemenu.desktop"
+fi
 if [ -f "$BIN_DIR/md-preview" ]; then
     rm -f "$BIN_DIR/md-preview"
     echo "   rm $BIN_DIR/md-preview"

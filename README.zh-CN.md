@@ -1,0 +1,241 @@
+# md-preview
+
+[![tests](https://github.com/BenXsha/md-preview/actions/workflows/test.yml/badge.svg)](https://github.com/BenXsha/md-preview/actions/workflows/test.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**在 Dolphin 里鼠标中键一点，`.md` 就以排好版的样子出现** —— 用纯 CSS 主题渲染成 PDF 交给 Okular
+（或渲染成 HTML 交给浏览器），并且带缓存，第二次点是秒开。
+
+> English docs: [README.md](README.md)
+
+## 解决的问题
+
+KDE 里对文件按鼠标中键，打开的是**该 MIME 类型应用列表里的第 2 个应用**
+（Dolphin 源码 `DolphinViewContainer::slotfileMiddleClickActivated`）。`.md` 这个位置默认落在 Okular 上，
+而 Okular 的 Markdown 后端只有两个设置：**默认字体** 和 **SmartyPants 开关**；纸面与文字颜色是写死的
+（`image.fill(Qt::white)`、`QPalette::Text` 固定黑色），页宽页边距也写死。长文档就是一大片黑字，且完全没法换样式
+（上游需求单 [400529](https://bugs.kde.org/show_bug.cgi?id=400529)、
+[426682](https://bugs.kde.org/show_bug.cgi?id=426682) 至今开着）。
+
+`md-preview 不去改 Okular**，而是接管中键那个位置，把渲染交给完整的 CSS 引擎：于是预览有了真正的排版、
+真正的深色模式、可自由更换的主题；Okular 继续做它擅长的事（翻页、缩放、批注）。
+
+## 特性
+
+- **为 KDE 的工作流而做** —— 占住 Dolphin 中键槽位；`Shift+中键` 走浏览器预览；可选装一个 Dolphin
+  右键「服务菜单」项。全用户级安装，不需要 sudo。
+- **重复打开是秒开** —— 按「源文件 mtime + 主题文件 + 脚本」做缓存签名，内容没变直接复用上次产物。
+- **纯 CSS 主题** —— 生成的 HTML 遵循通用的 Markdown 主题 DOM 约定（`#write`、`pre.md-fences`、
+  `div.CodeMirror.cm-s-inner`、`.cm-*` token 类），按这套约定写的主题可以直接用。自带两个 MIT 主题
+  （`default`、`default-dark`），离线即可用。
+- **代码配色跟着主题走** —— Pygments 的 token 同时带 CodeMirror 类名，主题自带的配色能命中；主题没定义时
+  用内置的浅色/深色两套配色兜底。
+- **浅深色自动处理** —— 读主题给页面设的底色（支持 `var(--bg-color)` 间接引用、逗号选择器；会跳过注释掉的
+  声明和 `prefers-color-scheme: dark` 块）判断深浅；对「把页面底色交给宿主应用」的主题自动补上背景色。
+- **为网页写的样式表做了打印修正** —— A4 `@page` 页边距、打印时去掉主题的栏宽、`print-color-adjust: exact`
+  让深色底和代码块底色在 PDF 里不丢。
+- **依赖轻** —— Python + `markdown-it-py` + `Pygments`；PDF 用无头 Chromium（自动探测
+  Edge/Chrome/Chromium/Brave）；没有 Chromium 时自动退回浏览器预览。
+
+## 安装
+
+### 从仓库安装（推荐，会一并配好 KDE 集成）
+
+```console
+$ git clone https://github.com/BenXsha/md-preview.git && cd md-preview
+$ ./contrib/install.sh --help      # 先看它到底动哪些文件
+$ ./contrib/install.sh             # 装脚本 + 自带主题 + desktop 项 + 中键槽位顺序
+```
+
+全部落在用户目录（`~/.local/bin`、`~/.config/md-preview`、`~/.cache/md-preview`、
+`~/.local/share/applications`、`~/.local/share/kio/servicemenus`），改 `~/.config/mimeapps.list` 之前会先备份。
+卸载：`./contrib/uninstall.sh`（一键还原）。
+
+### 用 pipx
+
+```console
+$ pipx install .          # 或 pip install --user .
+$ md-preview --version
+```
+
+### 只要一个文件
+
+`src/md_preview/cli.py` 是自包含的（只用标准库 + `markdown-it-py` + `Pygments`）：
+
+```console
+$ install -Dm755 src/md_preview/cli.py ~/.local/bin/md-preview
+```
+
+### 依赖
+
+| 依赖 | 用途 |
+| --- | --- |
+| Python ≥ 3.10 | 运行时 |
+| `markdown-it-py`、`Pygments` | Markdown → HTML、代码高亮 |
+| Chromium 系浏览器 | PDF 引擎（`--headless=new --print-to-pdf`），自动探测 Edge/Chrome/Chromium/Brave |
+| Okular 或任意 PDF 阅读器 | 看生成的 PDF；没有就退回浏览器 |
+| Pillow、websockets（可选） | 只有 `tools/theme-gallery.py`、`tools/probe-styles.py` 用 |
+
+## 在 KDE 里怎么用
+
+`contrib/install.sh` 之后，Markdown 的槽位是这样排的：
+
+| 槽位 | 触发方式 | 打开谁 |
+| --- | --- | --- |
+| 0 | 双击 / 回车 | 你的编辑器（如 Kate）—— 不变 |
+| 1 | **鼠标中键** | **md-preview** → 带主题的 PDF → Okular |
+| 2 | `Shift` + 中键 | md-preview `--html` → 浏览器 |
+| 3+ | 右键 → 打开方式 | 原来的 Okular 预览仍在列表里 |
+
+```console
+$ md-preview notes.md                # 生成带主题的 PDF，用 Okular 打开（带缓存）
+$ md-preview --html notes.md         # 生成带主题的 HTML，用浏览器打开
+$ md-preview --theme default-dark notes.md
+$ md-preview --list-themes
+```
+
+在 Dolphin 里右键 `.md`，还能从服务菜单直接选 **Markdown 预览（PDF / 浏览器）**。
+
+为什么占第 1 位而不是编辑器位？因为中键正是你「只想看一眼」时的手势，而双击留给编辑。
+机制、排序规则与坑：参见 [`docs/kde-dolphin-middle-click.md`](docs/kde-dolphin-middle-click.md)。
+
+## 主题
+
+主题就是一个 CSS 文件。自带（MIT，永远可用，不需要联网）：
+
+| 主题 | 观感 |
+| --- | --- |
+| `default` | 浅色，52 rem 正文宽度，类 GitHub 的代码块，中文字体栈 |
+| `default-dark` | 对应深色版，版式一致；PDF 里保留深色底 |
+
+可选的、许可明确的来源（需要显式拉取：`md-preview --fetch-themes drake mdmdt`）：
+[MIT](https://github.com/liangjingkanji/DrakeTyporaTheme) 与
+[Apache-2.0](https://github.com/cayxc/Mdmdt) 两套社区 CSS。其它主题用
+`md-preview --install-theme <文件|URL>` 自行安装 —— **该主题的许可由你自己确认**，
+30 秒自查清单见 [`docs/theme-licensing.md`](docs/theme-licensing.md)。
+
+```console
+$ md-preview --list-themes
+$ md-preview --theme-dir            # 把任意 .css 丢进这个目录就成为一个主题
+$ md-preview --install-theme ~/Downloads/my-theme.css
+```
+
+想对比观感，用截图更直观：
+
+```console
+$ python3 tools/theme-gallery.py     # 每个主题一张 PNG，并拼成一张对比图
+```
+
+### 自己写主题
+
+生成的 DOM（这是兼容性接口，会保持稳定）：
+
+| 选择器 | 元素 |
+| --- | --- |
+| `#write` | 正文容器（`<div id="write" class="typora-export">`） |
+| `body.typora-export` | 页面根；判定为深色主题时会额外加 `md-dark` |
+| `pre.md-fences` | 代码块外壳 —— 背景/边框/圆角写这里 |
+| `pre.md-fences > div.CodeMirror.cm-s-inner` | 代码块内层 |
+| `.cm-keyword` `.cm-string` `.cm-comment` `.cm-def` `.cm-number` … | 语法 token |
+| 普通元素 | `#write h1`、`p`、`table`、`blockquote`、`code`、`hr`、`img` |
+
+两条踩坑经验：
+
+- **不要**把 `cm-s-inner`/`CodeMirror` 加在 `<pre>` 上：有些主题带
+  `.cm-s-inner.CodeMirror { background: none }`（特异性 0,2,0），会把 `.md-fences` 的底色抹掉。
+  代码块做成两层嵌套正是为了避免这个。
+- 有些主题把页面底色交给宿主应用，自己只定义 `--bg-color`。这种情况 md-preview 会补上
+  `body { background-color: var(--bg-color, …) }`，并按深色主题处理。
+
+## 配置
+
+`~/.config/md-preview/config`：
+
+```ini
+theme      = default        # --list-themes 看全部可用主题
+dark_theme = default-dark   # 浏览器预览时系统为深色模式则用它（留空 = 不换）
+pdf_theme  =                # PDF 模式专用主题（留空 = 同 theme）
+```
+
+命令行可临时覆盖：`--theme` / `--dark-theme` / `--pdf-theme`。
+`--html` 走浏览器（连续滚动、页内查找、跟随系统深浅色）；默认走 PDF 交给 Okular（批注、书签、单页/连续）。
+
+## 工作原理
+
+```
+.md ──markdown-it-py──▶ HTML（Pygments 与 CodeMirror token 类）──┬─▶ 注入主题 CSS ─▶ 浏览器
+                                                                 └─▶ 无头 Chromium --print-to-pdf ─▶ Okular
+```
+
+- 主题文件用 `<link>` 原样引用，主题自带的相对路径字体/图片因此能正确加载；项目自己的 CSS 围绕它注入：
+  先低特异性桥接，最后打印规则。
+- 相对图片/链接用 `<base href="file://<md 所在目录>/">` 解析；标题自动加 `id`，文档内 `#锚点` 可跳转。
+- 缓存：`~/.cache/md-preview/<hash>/` 里放生成的 HTML、PDF、签名标记和无头浏览器 profile。
+
+## 已验证
+
+在 Ubuntu 26.04 / KDE Gear 25.12.3（Edge + Firefox）实测：用 `tools/probe-styles.py` 通过 DevTools 协议读真实
+`getComputedStyle`，用 `pdftoppm` + PIL 检查 PDF 产物：
+
+| 检查 | 结果 |
+| --- | --- |
+| 主题 CSS 真的命中 DOM | 自带 `default`：`#write` 52 rem、`pre.md-fences` 浅色底；`default-dark`：`body` 底色 `rgb(27,31,39)` |
+| token 配色来自主题而非兜底 | 各主题互不相同；没定义 token 配色的主题回退到内置 Pygments 浅/深配色 |
+| 代码块结构 | 各主题下 `pre.md-fences > .CodeMirror.cm-s-inner > code` 均存在 |
+| 深色主题在 PDF 里不变白 | `print-color-adjust: exact` 保住深底（页面亮度 ≈ 100–115，浅色主题 ≈ 240） |
+| 打印不受网页栏宽限制 | 墨迹横向占 A4 页宽 85%，两侧留白 7–8%（与 `@page 16mm` 一致） |
+| 中文可复制可搜索 | `pdftotext` 能抽取正文中文 |
+| 速度 | 20 KB / 12 页文档：HTML 0.22 s，PDF 冷启 2.8 s，缓存命中 0.000 s |
+
+## 已知限制
+
+- 没有数学公式渲染（KaTeX/MathJax），`$…$` 原样显示。
+- 任务列表 `- [x]` 不会渲染成勾选框（需要额外的 markdown-it 插件）。
+- Okular 的批注落在缓存 PDF 上；源文件改动后 PDF 会重新生成，Okular 按路径保存的批注可能错位。
+  需要长期批注的文档建议用 `--html` 阅读。
+- 跨 `.md` 链接在 PDF 里点不动；在 HTML 里会打开浏览器而不是继续预览。
+- Markdown 里的原始 HTML 会进入浏览器/PDF 引擎 —— 自己的文档没问题，别拿来渲染不可信来源。
+
+## 仓库结构
+
+```
+src/md_preview/cli.py     全部实现（自包含单文件）
+src/md_preview/*.css      自带 MIT 主题（default / default-dark）
+bin/md-preview            从仓库直接运行的启动器
+contrib/                  install.sh、uninstall.sh、merge-mimeapps.py、槽位排序、desktop 与服务菜单模板
+docs/                     Dolphin 中键机制、主题许可自查
+themes/README.md          主题约定与来源
+tools/                    主题截图拼版、DevTools 协议样式校验
+tests/                    pytest（纯函数 + DOM 结构 + mimeapps 合并 + 可选端到端 PDF）
+.github/workflows/        CI
+```
+
+## 开发
+
+```console
+$ make help                                  # test / install / gallery / probe
+$ python3 -m pytest -q                       # 全部测试（端到端 PDF 需要 Chromium）
+$ python3 -m pytest -q -k "not end_to_end"
+$ ./bin/md-preview --theme default-dark tests/sample.md
+```
+
+测试需要 `pytest`（`pipx install pytest`，或用 venv —— `python3 -m venv --system-site-packages` 可以直接复用
+系统的 `markdown-it-py`/`Pygments`）。
+
+## 为什么不做 Okular 后端插件
+
+「原生」做法当然是写个 backend，但：Okular 的 Markdown 后端只暴露一个勾选框和一个字体设置，渲染写死白底黑字；
+第三方 generator 链接 `libOkular6Core` 且没有 ABI 承诺，每次 Okular 升级都要重编，还要受 Qt 富文本 CSS 子集限制。
+把渲染交给完整的 CSS 引擎，样式上限高得多、维护成本接近零。（第三方 generator 确有先例，例如
+[okular-backend-mupdf](https://github.com/lanconnected/okular-backend-mupdf)。）
+
+## 致谢
+
+- KDE Dolphin / Okular / kservice —— 中键槽位逻辑来自 `KApplicationTrader` + `KMimeAssociations`。
+- [markdown-it-py](https://github.com/executablebooks/markdown-it-py) 与 [Pygments](https://pygments.org/)。
+- 可按需拉取的主题作者 —— 见 [THIRD-PARTY.md](THIRD-PARTY.md)。
+
+## 许可
+
+MIT —— 见 [LICENSE](LICENSE)。第三方主题与依赖：[THIRD-PARTY.md](THIRD-PARTY.md)；
+主题许可自查指南：[docs/theme-licensing.md](docs/theme-licensing.md)。

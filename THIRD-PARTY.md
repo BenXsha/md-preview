@@ -1,21 +1,33 @@
-# 第三方许可与致谢 / Third-party licenses
+# 第三方许可 / Third-party licenses
 
-本项目自身代码是 [MIT](LICENSE)。**仓库里不包含任何第三方主题的 CSS**，主题由
-`md-preview --fetch-themes` 在用户机器上按需下载，版权归各自作者所有。
+本项目（md-preview）自身代码以 [MIT](LICENSE) 发布。
 
-The project code is MIT licensed. **No third-party theme CSS is bundled in this repository** —
-themes are downloaded on demand into the user's own config directory by `md-preview --fetch-themes`.
+**仓库里不包含任何第三方主题的 CSS。** 用户显式执行 `--fetch-themes` 时，程序直接从各自上游仓库下载到
+用户自己的配置目录；仓库自带的两个主题是本项目原创的 MIT 资源。
 
-## 可一键拉取的主题 / Fetchable themes
+The project code is MIT licensed. **No third-party theme CSS is bundled**: themes are downloaded on demand from
+their upstream repositories into the user's own config directory. The two bundled themes are original MIT assets.
+
+## 自带资源 / Bundled assets
+
+| 文件 | 许可 |
+| --- | --- |
+| `src/md_preview/fallback.css`（主题 `default`） | MIT，本项目原创 |
+| `src/md_preview/fallback-dark.css`（主题 `default-dark`） | MIT，本项目原创 |
+
+## 可选主题集 / Optional fetchable theme sets
+
+只有在用户显式执行 `md-preview --fetch-themes …` 时才会联网下载，且只收录许可明确的来源。
 
 | 主题集 | 上游 / Upstream | 许可 / License |
 | --- | --- | --- |
-| `typora`（`github` `gothic` `newsprint` `night` `pixyll` `whitey` `whitey-deep`） | <https://github.com/typora/typora-default-themes> | 上游仓库未声明开源许可（这些是 Typora 自带的默认主题），仅供本地个人使用 / No license declared upstream; personal local use only |
-| `drake`（11 个配色） | <https://github.com/liangjingkanji/DrakeTyporaTheme> | MIT, Copyright (c) 2023 劉強東 |
-| `mdmdt`（`mdmdt-light` `mdmdt-dark`） | <https://github.com/cayxc/Mdmdt> | Apache-2.0 |
+| `drake` | <https://github.com/liangjingkanji/DrakeTyporaTheme> | MIT, Copyright (c) 2023 劉強東（随附 JetBrains Mono 字体，SIL OFL 1.1） |
+| `mdmdt` | <https://github.com/cayxc/Mdmdt> | Apache-2.0 |
 
-其他主题可从 [Typora 主题画廊](https://theme.typora.io/) 或 GitHub 自取，用
-`md-preview --install-theme <URL 或 .css>` 安装；其许可由各自作者决定，本项目不做任何再分发。
+上游仓库名中的编辑器字样只是项目标识，用于准确署名与定位源码；本项目与任何编辑器厂商无隶属或背书关系。
+
+其它来源的主题：使用者自行获取并确认许可，用 `md-preview --install-theme` 安装，
+许可由安装者负责。自查方法见 [docs/theme-licensing.md](docs/theme-licensing.md)。
 
 ## 运行时依赖 / Runtime dependencies
 
@@ -23,16 +35,17 @@ themes are downloaded on demand into the user's own config directory by `md-prev
 | --- | --- |
 | [markdown-it-py](https://github.com/executablebooks/markdown-it-py) | MIT |
 | [Pygments](https://pygments.org/) | BSD-2-Clause |
-| Chromium 系浏览器（Edge / Chrome / Chromium / Brave，仅作为 headless PDF 引擎调用） | 各自的许可 |
+| Chromium 系浏览器（Edge / Chrome / Chromium / Brave，仅作为无头 PDF 引擎调用） | 各自许可 |
 | Okular（可选，用于查看生成的 PDF） | GPL-2.0-or-later |
-| Pillow（可选，只有 `tools/theme-gallery.py` 用） | HPND |
-| websockets（可选，只有 `tools/probe-styles.py` 用） | BSD-3-Clause |
+| Pillow（可选，仅 `tools/theme-gallery.py`） | HPND |
+| websockets（可选，仅 `tools/probe-styles.py`） | BSD-3-Clause |
 
 ## 参考 / References
 
-- KDE Dolphin 源码（`src/dolphinviewcontainer.cpp` → `slotfileMiddleClickActivated`）与
-  kservice 的 `KMimeAssociations`：中键选应用的机制，见
+- KDE Dolphin 源码（`src/dolphinviewcontainer.cpp` → `slotfileMiddleClickActivated`）与 kservice 的
+  `KMimeAssociations`：中键槽位的选择机制，见
   [docs/kde-dolphin-middle-click.md](docs/kde-dolphin-middle-click.md)。
 - Okular 的 Markdown 后端（`okularGenerator_md`）与上游需求单
   [400529](https://bugs.kde.org/show_bug.cgi?id=400529)、
-  [426682](https://bugs.kde.org/show_bug.cgi?id=426682)：为什么本项目不改 Okular 插件。
+  [426682](https://bugs.kde.org/show_bug.cgi?id=426682)：说明本项目为什么不做 Okular 后端插件，
+  只在文档里引用事实，不含任何上游代码。

@@ -2,8 +2,8 @@
 Type=Application
 Name=Markdown Preview (Browser)
 Name[zh_CN]=Markdown 预览（浏览器）
-Comment=Render Markdown with a Typora theme and open it in the web browser
-Comment[zh_CN]=用 Typora 主题渲染 Markdown，并用浏览器打开
+Comment=Render Markdown with a plain-CSS theme and open it in the web browser
+Comment[zh_CN]=用纯 CSS 主题渲染 Markdown，并用浏览器打开
 Exec=@BIN@ --html %f
 Icon=text-markdown
 Terminal=false

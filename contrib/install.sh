@@ -8,10 +8,11 @@ BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
 CONF_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 APP_DIR="$DATA_DIR/applications"
+SERVICE_DIR="$DATA_DIR/kio/servicemenus"
 CONF_DIR="$CONF_HOME/md-preview"
 MIMEAPPS="$CONF_HOME/mimeapps.list"
 MIMES=(text/markdown text/x-markdown)
-THEME_SETS="typora drake mdmdt"
+THEME_SETS=""   # 默认不联网：自带 default / default-dark 即可用；需要更多风格时用 --fetch 指定
 DO_THEMES=1
 DO_ASSOC=1
 
@@ -21,13 +22,14 @@ usage() {
 
   --skip-themes              不下载主题（之后可手动跑 md-preview --fetch-themes）
   --skip-associations        不改 mimeapps.list（即不接管 Dolphin 中键预览）
-  --fetch "typora drake"     指定要下载的主题集（默认 "$THEME_SETS"）
+  --fetch "drake mdmdt"       可选：额外拉取带明确开源许可的社区主题集（默认不联网）
   -h, --help                 显示本帮助
 
 会写入:
   \$BIN_DIR/md-preview                                  (单文件脚本)
   \$CONF_DIR/config, \$CONF_DIR/style.css                (配置与兜底样式)
   \$APP_DIR/md-preview.desktop, md-preview-browser.desktop
+  \$SERVICE_DIR/md-preview-servicemenu.desktop           (Dolphin 右键服务菜单)
   \$MIMEAPPS 里 text/markdown 与 text/x-markdown 的顺序   (首次修改前备份为 *.bak-md-preview)
 
 中键顺序会排成: 双击=原编辑器 → 中键=md-preview(PDF) → Shift+中键=浏览器预览 → 其后=原 Okular
@@ -63,15 +65,14 @@ else
     cat > "$CONF_DIR/config" <<'EOF'
 # md-preview 配置（改完下次预览自动生效）
 #
-# theme      : 默认主题。--list-themes 看全部；把任意 Typora 主题 .css 丢进
-#              ~/.config/md-preview/themes/ 也能用。
-#              常用：github(干净) newsprint(米色纸/衬线窄栏) mdmdt-light(中文极简)
-#                    drake-jb(暗色代码块) drake-google drake-vue pixyll whitey gothic
-#              深色：night mdmdt-dark drake-dark whitey-deep
+# theme      : 默认主题。自带 default（浅色）与 default-dark（深色），无需联网；
+#              --list-themes 看所有可用主题，把任意 .css 丢进
+#              ~/.config/md-preview/themes/ 也能用（主题许可请自行确认）。
+#              可选：md-preview --fetch-themes drake mdmdt 拉取 MIT/Apache-2.0 社区主题集。
 # dark_theme : 浏览器预览时，系统切到深色模式则替换成这个（留空 = 不换）
-# pdf_theme  : PDF 模式专用主题（留空 = 同 theme）。想让 Okular 里也是深色就填 night
-theme      = github
-dark_theme = night
+# pdf_theme  : PDF 模式专用主题（留空 = 同 theme）。想让 Okular 里也走深色就填 default-dark
+theme      = default
+dark_theme = default-dark
 pdf_theme  =
 EOF
     echo "   写入 $CONF_DIR/config"
@@ -88,15 +89,21 @@ else
     echo "   跳过（--skip-themes）"
 fi
 
-echo "== 4/5 desktop 项 =="
-mkdir -p "$APP_DIR"
-python3 - "$REPO_DIR" "$BIN_DIR/md-preview" "$APP_DIR" <<'PY'
+echo "== 4/5 desktop 项与服务菜单 =="
+mkdir -p "$APP_DIR" "$SERVICE_DIR"
+python3 - "$REPO_DIR" "$BIN_DIR/md-preview" "$APP_DIR" "$SERVICE_DIR" <<'PY'
 import pathlib, sys
-repo, exec_path, app_dir = pathlib.Path(sys.argv[1]), sys.argv[2], pathlib.Path(sys.argv[3])
-for name in ("md-preview.desktop", "md-preview-browser.desktop"):
-    text = (repo / "contrib" / f"{name}.in").read_text(encoding="utf-8").replace("@BIN@", exec_path)
-    (app_dir / name).write_text(text, encoding="utf-8")
-    print("   ", app_dir / name)
+
+repo, exec_path, app_dir, service_dir = (pathlib.Path(v) for v in sys.argv[1:5])
+targets = [
+    ("md-preview.desktop", app_dir),                      # 「打开方式」里的 PDF 预览
+    ("md-preview-browser.desktop", app_dir),               # 「打开方式」里的浏览器预览
+    ("md-preview-servicemenu.desktop", service_dir),       # Dolphin 右键服务菜单
+]
+for name, dest in targets:
+    text = (repo / "contrib" / f"{name}.in").read_text(encoding="utf-8").replace("@BIN@", str(exec_path))
+    (dest / name).write_text(text, encoding="utf-8")
+    print("   ", dest / name)
 PY
 
 echo "== 5/5 文件关联顺序 =="
@@ -136,7 +143,7 @@ cat <<EOF
 
 现在可以直接用:
   md-preview --list-themes            列出主题
-  md-preview --theme newsprint 文档.md  生成带样式的 PDF 并用 Okular 打开
+  md-preview --theme default-dark 文档.md  生成带样式的 PDF 并用 Okular 打开
   md-preview --html 文档.md            用浏览器预览
 
 在 Dolphin 里对任意 .md 按【鼠标中键】即可看到效果；Shift+中键 = 浏览器预览。

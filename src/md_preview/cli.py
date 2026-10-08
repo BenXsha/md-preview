@@ -1,26 +1,31 @@
 #!/usr/bin/env python3
-"""md-preview —— 把 Markdown 渲染成带主题样式的 PDF / HTML，专为「看一眼」而设计。
+"""md-preview —— 把 Markdown 渲染成带样式的 PDF / HTML，专为「中键看一眼」设计。
 
-最适合的场景是 KDE(Dolphin) 的鼠标中键预览：中键点一个 .md，直接得到排版漂亮的
-预览（默认转成 PDF 用 Okular 打开，或 --html 用浏览器打开）。样式借用 Typora 主题
-（纯 CSS，直接用 #write / .md-fences / .cm-* 选择器命中），可以随便换、随时加。
+最适合的场景是 KDE(Dolphin) 的鼠标中键预览：中键点一个 .md，直接得到排版漂亮的预览
+（默认渲染成 PDF 交给 Okular，或 --html 用浏览器打开）。
+
+样式来自**纯 CSS 主题**：项目生成的 HTML 遵循通用的 Markdown 主题 DOM 约定
+（`#write` / `pre.md-fences` / `div.CodeMirror.cm-s-inner` / `.cm-*` token 类），
+任何按这套约定书写的 CSS 都能直接用。自带两个 MIT 许可的主题（`default` / `default-dark`），
+开箱即用、不需要联网；需要更多风格时可安装自己信任的主题文件。
 
 用法:
-  md-preview FILE.md                生成带主题样式的 PDF，用 Okular 打开（默认，带缓存）
-  md-preview --html FILE.md         生成带主题样式的 HTML，用默认浏览器打开
-  md-preview --theme newsprint FILE.md
-  md-preview --list-themes          列出已安装主题
-  md-preview --fetch-themes         从上游拉取 Typora 主题（官方默认 + Drake + Mdmdt）
+  md-preview FILE.md                渲染成带主题样式的 PDF，用 Okular 打开（默认，带缓存）
+  md-preview --html FILE.md         渲染成 HTML，用默认浏览器打开
+  md-preview --theme default-dark FILE.md
+  md-preview --list-themes          列出可用主题（自带 + 已安装）
+  md-preview --fetch-themes         可选：拉取带明确开源许可的社区主题集（见 THIRD-PARTY.md）
   md-preview --install-theme <URL 或 .css 路径>
   md-preview --theme-dir            打印主题目录（把任意 .css 丢进去即可生效）
   md-preview --version
 
 配置: ~/.config/md-preview/config
-    theme      = github      # 默认主题
-    dark_theme = night       # 浏览器预览时系统为深色模式则换成这个（可留空）
-    pdf_theme  =             # PDF 模式专用主题（留空 = 用 theme）
+    theme      = default       # 默认主题（default / default-dark 为自带主题）
+    dark_theme = default-dark  # 浏览器预览时系统为深色模式则换成这个（可留空）
+    pdf_theme  =               # PDF 模式专用主题（留空 = 用 theme）
 
 主题目录: ~/.config/md-preview/themes/   缓存目录: ~/.cache/md-preview/<hash>/
+许可说明: 主题由使用者自行添加；本项目只收录许可明确的来源，详见 THIRD-PARTY.md
 """
 
 from __future__ import annotations
@@ -43,8 +48,14 @@ CACHE = pathlib.Path(os.environ.get("XDG_CACHE_HOME", HOME / ".cache")) / "md-pr
 THEMES = CONF / "themes"
 CONFIG_FILE = CONF / "config"
 PKG_DIR = pathlib.Path(__file__).resolve().parent
-PACKAGE_FALLBACK = PKG_DIR / "fallback.css"  # 随项目分发的兜底样式
-__version__ = "0.1.0"
+PACKAGE_FALLBACK = PKG_DIR / "fallback.css"  # 自带浅色主题（MIT，随项目分发）
+PACKAGE_FALLBACK_DARK = PKG_DIR / "fallback-dark.css"  # 自带深色主题（MIT）
+# 自带主题：不依赖任何第三方，装完即可用
+BUNDLED_THEMES: dict[str, pathlib.Path] = {
+    "default": PACKAGE_FALLBACK,
+    "default-dark": PACKAGE_FALLBACK_DARK,
+}
+__version__ = "0.2.0"
 
 CHROMIUM_CANDIDATES = [
     "/usr/bin/microsoft-edge-stable",
@@ -78,7 +89,7 @@ body { margin: 0; }
 #write table { border-collapse: collapse; margin: 1em 0; }
 #write hr { border: none; border-top: 1px solid currentColor; opacity: .25; margin: 1.6em 0; }
 
-/* 代码块：Typora 把 padding/font 放在 .CodeMirror-lines 上，我们没有那层元素，这里补上 */
+/* 代码块：有些主题把 padding/font 放在 .CodeMirror-lines 上，我们没有那层元素，这里补上 */
 :root { --mp-fence-bg: #f6f8fa; --mp-inline-bg: #f6f8fa; }
 body.md-dark { --mp-fence-bg: #22272e; --mp-inline-bg: #2d333b; }
 
@@ -154,7 +165,7 @@ TEMPLATE = """<!doctype html>
 </html>
 """
 
-# Pygments token -> CodeMirror/CodeMirror-inner 类名（Typora 主题按这些配色）
+# Pygments token -> CodeMirror 类名（遵循这套 DOM 约定的主题按这些类名配色）
 TOKEN_MAP = {
     "k": "cm-keyword", "kc": "cm-keyword", "kd": "cm-keyword", "kn": "cm-keyword",
     "kp": "cm-keyword", "kr": "cm-keyword", "kt": "cm-keyword",
@@ -195,9 +206,12 @@ def read_config() -> dict[str, str]:
 
 
 def theme_path(name: str) -> pathlib.Path | None:
-    """把主题名解析成 css 路径；支持绝对路径。"""
+    """把主题名解析成 css 路径：自带主题 → 用户主题目录 → 绝对路径 / 显式 .css。"""
     if not name:
         return None
+    bundled = BUNDLED_THEMES.get(name)
+    if bundled is not None:
+        return bundled if bundled.is_file() else None
     p = pathlib.Path(name).expanduser()
     if p.is_absolute() or p.suffix == ".css":
         return p if p.is_file() else None
@@ -208,7 +222,9 @@ def theme_path(name: str) -> pathlib.Path | None:
 
 
 def list_themes() -> list[str]:
-    return sorted(p.stem for p in THEMES.glob("*.css"))
+    """自带主题 + 用户主题目录里的 *.css（不含主题自带的资源子目录）。"""
+    user = {p.stem for p in THEMES.glob("*.css")}
+    return sorted(set(BUNDLED_THEMES) | user)
 
 
 # ---------------------------------------------------------------- Markdown -> HTML
@@ -356,8 +372,9 @@ def make_markdown():
         inner = _map_tokens(highlight(code, lexer, HtmlFormatter(nowrap=True)))
         lang_attr = f' lang="{html_mod.escape(lang)}"' if lang else ""
         lang_cls = html_mod.escape(lang) if lang else "text"
-        # Typora 主题认这些包装类：#write > pre.md-fences / .cm-s-inner / .cm-s-typora-default
-        # 结构与 Typora 对齐：#write > pre.md-fences > div.CodeMirror.cm-s-inner > code。
+        # 兼容类名：主题 CSS 通过它们命中代码块（#write > pre.md-fences /
+        # .cm-s-inner / .cm-s-typora-default 是这套 DOM 约定的既有标识符，保留以保持兼容）
+        # 结构与约定一致：#write > pre.md-fences > div.CodeMirror.cm-s-inner > code。
         # 注意不能把 cm-s-inner/CodeMirror 直接放在 pre 上：主题里的
         # `.cm-s-inner.CodeMirror { background: none }`（特异性更高）会盖掉
         # `.md-fences` 的背景色，代码块就没底色了。
@@ -397,7 +414,7 @@ def render_html(src_path: pathlib.Path, css: str, cfg: dict[str, str], mode: str
 
     dark = theme_path(dark_name) if (dark_name and mode != "pdf") else None
     is_dark = is_dark_theme(active)
-    # 有些主题（如 Drake 系列）把页面底色交给 Typora 的界面处理，自己只定义 --bg-color，
+    # 有些主题把页面底色交给宿主应用处理，自己只定义 --bg-color 变量，
     # 单独渲染 HTML/PDF 时必须补上，否则深色主题会变成「白底浅字」。
     page_bg_css = ""
     if _first_page_bg(active) is None:
@@ -480,16 +497,10 @@ def to_pdf(html_path: pathlib.Path, outdir: pathlib.Path, pdf_path: pathlib.Path
     return None
 
 
-# ---------------------------------------------------------------- Typora 主题目录
-# 只记录来源与许可，本项目不重新分发这些 CSS；--fetch-themes 时按需下载到用户主题目录。
+# ---------------------------------------------------------------- 可选主题集（只收录许可明确的来源）
+# 本项目不打包、也不再分发第三方 CSS：只在用户显式执行 --fetch-themes 时，
+# 直接从上游仓库下载到用户自己的主题目录。许可与出处见 THIRD-PARTY.md。
 THEME_SETS: dict[str, dict[str, object]] = {
-    "typora": {
-        "repo": "typora/typora-default-themes",
-        "branch": "master",
-        "prefix": "themes/",
-        "assets": True,
-        "license": "Typora 官方默认主题（上游仓库未声明开源许可，仅供本地个人使用）",
-    },
     "drake": {
         "repo": "liangjingkanji/DrakeTyporaTheme",
         "branch": "master",

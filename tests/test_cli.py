@@ -126,7 +126,8 @@ def test_list_themes_ignores_asset_subdirs(tmp_path, monkeypatch):
     (tmp_path / "beta.css").write_text("", encoding="utf-8")
     (tmp_path / "alpha").mkdir()
     (tmp_path / "alpha" / "font.css").write_text("", encoding="utf-8")
-    assert cli.list_themes() == ["alpha", "beta"]
+    assert {"alpha", "beta"} <= set(cli.list_themes())  # 自带主题也会列出
+    assert "font" not in cli.list_themes()  # 资源子目录里的 font.css 不算主题
 
 
 def test_fetch_themes_rejects_unknown_set(capsys):

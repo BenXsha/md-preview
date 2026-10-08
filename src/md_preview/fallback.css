@@ -1,4 +1,8 @@
-/* md-preview 样式：~/.config/md-preview/style.css  —— 改这里就能改预览外观 */
+/* md-preview 自带浅色主题（default / 兜底样式）
+ * SPDX-License-Identifier: MIT — 随项目分发，可自由修改。
+ * 调用方：无主题或主题缺失时用它；也会被安装为 ~/.config/md-preview/style.css。
+ * 想改成自己的样子：复制到 ~/.config/md-preview/themes/<名字>.css 或直接改 style.css。
+ * 选择器约定见 themes/README.md。 */
 @page {
   size: A4;
   margin: 18mm 16mm 16mm 16mm;
