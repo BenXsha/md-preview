@@ -1,0 +1,25 @@
+..........................F.                                             [100%]
+=================================== FAILURES ===================================
+_____________________________ test_end_to_end_pdf ______________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-0/test_end_to_end_pdf0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc926078d10>
+
+    @pytest.mark.skipif(cli._find_chromium() is None, reason="需要 Chromium 系浏览器（Edge/Chrome/Chromium）")
+    def test_end_to_end_pdf(tmp_path, monkeypatch):
+        _prepare(tmp_path, monkeypatch, None)
+        html_path, outdir, meta = cli.render_html(SAMPLE, cli.BASE_CSS, {"theme": ""}, "pdf")
+        pdf = outdir / f"{SAMPLE.stem}.pdf"
+>       assert cli.to_pdf(html_path, outdir, pdf, "test-sig") == pdf
+E       AssertionError: assert None == PosixPath('/tmp/pytest-of-runner/pytest-0/test_end_to_end_pdf0/cache/0637240da5dd/sample.pdf')
+E        +  where None = <function to_pdf at 0x7fc926228cc0>(PosixPath('/tmp/pytest-of-runner/pytest-0/test_end_to_end_pdf0/cache/0637240da5dd/sample.html'), PosixPath('/tmp/pytest-of-runner/pytest-0/test_end_to_end_pdf0/cache/0637240da5dd'), PosixPath('/tmp/pytest-of-runner/pytest-0/test_end_to_end_pdf0/cache/0637240da5dd/sample.pdf'), 'test-sig')
+E        +    where <function to_pdf at 0x7fc926228cc0> = cli.to_pdf
+
+tests/test_cli.py:227: AssertionError
+----------------------------- Captured stderr call -----------------------------
+md-preview: 无头浏览器返回 -6，未能生成 PDF：[2615:2615:0100/000000.302646:ERROR:content/zygote/zygote_linux.cc:662] write: Broken pipe (32)
+=========================== short test summary info ============================
+FAILED tests/test_cli.py::test_end_to_end_pdf - AssertionError: assert None == PosixPath('/tmp/pytest-of-runner/pytest-0/test_end_to_end_pdf0/cache/0637240da5dd/sample.pdf')
+ +  where None = <function to_pdf at 0x7fc926228cc0>(PosixPath('/tmp/pytest-of-runner/pytest-0/test_end_to_end_pdf0/cache/0637240da5dd/sample.html'), PosixPath('/tmp/pytest-of-runner/pytest-0/test_end_to_end_pdf0/cache/0637240da5dd'), PosixPath('/tmp/pytest-of-runner/pytest-0/test_end_to_end_pdf0/cache/0637240da5dd/sample.pdf'), 'test-sig')
+ +    where <function to_pdf at 0x7fc926228cc0> = cli.to_pdf
+1 failed, 27 passed in 4.70s
