@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# 失败时会把 pytest 日志推到 ci-logs 分支，方便在无法访问 Actions 页面时排查
+permissions:
+  contents: write
+
 jobs:
   pytest:
     runs-on: ubuntu-latest
@@ -30,7 +34,38 @@ jobs:
         run: |
           md-preview --version
           md-preview --list-themes || true
-          (command -v google-chrome || command -v chromium || echo "no chromium → the e2e test will skip itself")
+          BROWSER="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
+          if [ -n "$BROWSER" ]; then
+            echo "browser=$BROWSER"
+            "$BROWSER" --version || true
+            "$BROWSER" --headless=new --disable-gpu --no-sandbox --dump-dom about:blank | head -3 || echo "headless dump-dom failed"
+            "$BROWSER" --headless=new --disable-gpu --no-sandbox --print-to-pdf=/tmp/probe.pdf about:blank \
+              && ls -l /tmp/probe.pdf || echo "headless print-to-pdf failed"
+          else
+            echo "no chromium-based browser → the end-to-end test will skip itself"
+          fi
 
       - name: Test
-        run: pytest -q
+        id: test
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pytest -q -rf 2>&1 | tee /tmp/pytest.log
+
+      - name: Keep the log in a branch when something fails
+        if: steps.test.outcome == 'failure' && matrix.python-version == '3.12'
+        env:
+          LOG_PY: ${{ matrix.python-version }}
+        run: |
+          mkdir -p .ci
+          cp /tmp/pytest.log ".ci/pytest-$LOG_PY.log"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B ci-logs
+          git add -f .ci
+          git commit -m "ci: pytest 日志（python $LOG_PY）"
+          git push --force origin ci-logs
+
+      - name: Fail the job if tests failed
+        if: steps.test.outcome == 'failure'
+        run: exit 1
