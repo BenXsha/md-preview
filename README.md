@@ -280,6 +280,10 @@ $ ./bin/md-preview --theme default-dark tests/sample.md
 Tests need `pytest` (`pipx install pytest`, or a venv — `python3 -m venv --system-site-packages` can reuse the
 system's `markdown-it-py`/`Pygments`).
 
+Maintainer helpers: `python3 contrib/set-repo-metadata.py --dry-run` previews the repository description/topics
+and the GitHub Releases generated from `CHANGELOG.md` (the script header documents the token it needs);
+`contrib/merge-mimeapps.py` is what reorders the MIME slots on install.
+
 ## Why not an Okular generator plugin
 
 An in-tree backend would be the "native" answer, but: Okular's Markdown backend exposes exactly one checkbox

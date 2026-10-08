@@ -270,6 +270,10 @@ $ ./bin/md-preview --theme default-dark tests/sample.md
 测试需要 `pytest`（`pipx install pytest`，或用 venv —— `python3 -m venv --system-site-packages` 可以直接复用
 系统的 `markdown-it-py`/`Pygments`）。
 
+维护者用的小工具：`python3 contrib/set-repo-metadata.py --dry-run` 可以预览「仓库简介/话题」以及
+从 `CHANGELOG.md` 生成的 GitHub Release（所需 token 的权限写在脚本头部）；`contrib/merge-mimeapps.py`
+就是安装时重排 MIME 槽位的那个脚本。
+
 ## 为什么不做 Okular 后端插件
 
 「原生」做法当然是写个 backend，但：Okular 的 Markdown 后端只暴露一个勾选框和一个字体设置，渲染写死白底黑字；
