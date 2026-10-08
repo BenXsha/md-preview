@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "md-preview"
-version = "0.3.0"
+version = "0.4.0"
 description = "Render Markdown into styled PDF/HTML with plain-CSS themes — built for KDE Dolphin middle-click preview"
 readme = "README.md"
 requires-python = ">=3.10"

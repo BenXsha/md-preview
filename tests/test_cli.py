@@ -299,6 +299,122 @@ def test_cli_unknown_missing_file_is_skipped(capsys, tmp_path, monkeypatch):
     assert "跳过" in capsys.readouterr().err
 
 
+# ------------------------------------------------------------------ YAML 头部
+FM_SKILL = (
+    "---\n"
+    "name: my-skill\n"
+    'description: "一段很长的说明: 带冒号和引号"\n'
+    "version: 1.2.3\n"
+    "tags:\n"
+    "  - alpha\n"
+    "  - beta\n"
+    "---\n"
+    "\n# 正文标题\n"
+)
+
+
+def test_split_front_matter_basic():
+    source, body = cli.split_front_matter(FM_SKILL)
+    assert source is not None and "name: my-skill" in source
+    assert body.lstrip().startswith("# 正文标题")
+
+
+def test_split_front_matter_needs_key_value():
+    """以 --- 开头的普通文档（分隔线）不能被当成头部吃掉。"""
+    text = "---\n\n只是一条分隔线\n\n---\n\n正文\n"
+    source, body = cli.split_front_matter(text)
+    assert source is None and body == text
+
+
+def test_split_front_matter_unterminated():
+    text = "---\nname: x\n\n正文没有结束标记\n"
+    assert cli.split_front_matter(text) == (None, text)
+
+
+def test_parse_front_matter_with_pyyaml():
+    source, _ = cli.split_front_matter(FM_SKILL)
+    meta = cli.parse_front_matter(source or "")
+    assert meta == {
+        "name": "my-skill",
+        "description": "一段很长的说明: 带冒号和引号",
+        "version": "1.2.3",
+        "tags": ["alpha", "beta"],
+    }
+
+
+def test_parse_front_matter_without_pyyaml(monkeypatch):
+    """没有 PyYAML 时走内置解析器，常见写法也要能读出来。"""
+    monkeypatch.setattr(cli, "_yaml_module", lambda: None)
+    source = (
+        "name: builtin\n"
+        "version: 2\n"
+        "flag: true\n"
+        "ratio: 1.5\n"
+        "tags: [a, b]\n"
+        "keywords:\n"
+        "  - one\n"
+        "  - two\n"
+        "note: >\n"
+        "  多行\n"
+        "  折叠\n"
+        "empty:\n"
+    )
+    meta = cli.parse_front_matter(source)
+    assert meta is not None
+    assert meta["name"] == "builtin" and meta["version"] == 2
+    assert meta["flag"] is True and meta["ratio"] == 1.5
+    assert meta["tags"] == ["a", "b"] and meta["keywords"] == ["one", "two"]
+    assert meta["note"] == "多行 折叠" and meta["empty"] == ""
+
+
+def test_parse_front_matter_without_pyyaml_rejects_nested(monkeypatch):
+    monkeypatch.setattr(cli, "_yaml_module", lambda: None)
+    assert cli.parse_front_matter("outer:\n  inner: 1\n") is None
+
+
+def test_front_matter_card_structure():
+    source, _ = cli.split_front_matter(FM_SKILL)
+    card = cli.front_matter_html(cli.parse_front_matter(source or ""), source or "")
+    assert card.startswith('<section class="front-matter" data-format="yaml">')
+    assert '<span class="fm-name">my-skill</span>' in card
+    assert '<span class="fm-chip">version 1.2.3</span>' in card
+    assert "<dt>description</dt>" in card and "<dt>tags</dt>" in card
+    assert '<ul class="fm-chips"><li>alpha</li><li>beta</li></ul>' in card
+    # description 排在其它字段前面
+    assert card.index("<dt>description</dt>") < card.index("<dt>tags</dt>")
+
+
+def test_front_matter_modes():
+    source, _ = cli.split_front_matter(FM_SKILL)
+    meta = cli.parse_front_matter(source or "")
+    assert cli.front_matter_html(meta, source or "", "off") == ""
+    raw = cli.front_matter_html(meta, source or "", "raw")
+    assert 'data-format="raw"' in raw and "name: my-skill" in raw
+    unparsed = cli.front_matter_html(None, "name: x\n", "card")
+    assert 'data-format="raw"' in unparsed and "无法解析" in unparsed
+
+
+def test_render_html_front_matter(tmp_path, monkeypatch):
+    _prepare(tmp_path, monkeypatch, "#write{max-width:640px}\nbody{background:#fff}\n")
+    doc = tmp_path / "SKILL.md"
+    doc.write_text(FM_SKILL, encoding="utf-8")
+
+    html_path, _, _ = cli.render_html(doc, cli.BASE_CSS, {"theme": "test"}, "html")
+    html = html_path.read_text(encoding="utf-8")
+    assert '<section class="front-matter"' in html
+    assert "<title>正文标题</title>" in html  # 有 H1 时优先用 H1
+    assert "name: my-skill" not in html  # YAML 不再作为正文泄漏出来
+
+    no_h1 = tmp_path / "SKILL-no-h1.md"
+    no_h1.write_text(FM_SKILL.split("\n# ")[0] + "\n\n只有正文，没有一级标题。\n", encoding="utf-8")
+    html_path, _, _ = cli.render_html(no_h1, cli.BASE_CSS, {"theme": "test"}, "html")
+    assert "<title>my-skill</title>" in html_path.read_text(encoding="utf-8")  # 没有 H1 就用头部里的 name
+
+    html_path, _, _ = cli.render_html(doc, cli.BASE_CSS, {"theme": "test", "front_matter": "off"}, "html")
+    html = html_path.read_text(encoding="utf-8")
+    assert '<section class="front-matter"' not in html and "一段很长的说明" not in html
+
+
 # ------------------------------------------------------------------ 端到端
 @pytest.mark.skipif(cli._find_chromium() is None, reason="需要 Chromium 系浏览器（Edge/Chrome/Chromium）")
 def test_end_to_end_pdf(tmp_path, monkeypatch):

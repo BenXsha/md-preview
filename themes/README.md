@@ -58,6 +58,7 @@ $ md-preview --install-theme ~/Downloads/some-theme.css
 | `pre.md-fences > div.CodeMirror.cm-s-inner` | 代码块内层（有些主题的 `.cm-s-inner.CodeMirror { background: none }` 命中这里） |
 | `.cm-keyword` `.cm-string` `.cm-comment` `.cm-def` `.cm-number` `.cm-variable` … | 语法 token 类名 |
 | 普通元素 | `#write h1`、`p`、`table`、`blockquote`、`code`、`hr`、`img`、`ul/ol/li` |
+| `.front-matter`（含 `.fm-title` `.fm-name` `.fm-chip` `.fm-fields` `.fm-chips` `.fm-raw`） | YAML 头部信息卡；底色可用 `--mp-frontmatter-bg` 变量覆盖，深色主题默认在 `body.md-dark` 里换了色 |
 
 > 关于 `typora-export` / `cm-s-typora-default` 这两个类名：它们是这套 CSS 约定里**既有的标识符**，
 > 很多按该约定编写的主题用它做选择器，所以原样保留以维持兼容；它们只表示「遵循该 DOM 约定」，

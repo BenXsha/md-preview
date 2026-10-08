@@ -21,6 +21,7 @@
   md-preview --fetch-themes         可选：拉取带明确开源许可的社区主题集（见 THIRD-PARTY.md）
   md-preview --fetch-assets         可选：下载公式/图表用的 KaTeX、Mermaid（都是 MIT）
   md-preview --no-math --no-mermaid 关闭公式 / 图表渲染
+  md-preview --front-matter card     YAML 头部的显示方式：card / raw / off
   md-preview --install-theme <URL 或 .css 路径>
   md-preview --theme-dir            打印主题目录（把任意 .css 丢进去即可生效）
   md-preview --version
@@ -33,6 +34,7 @@
     mermaid    = auto          # auto / off：图表渲染开关
     assets_dir =               # 自定义 KaTeX/Mermaid 所在目录（留空 = 用默认查找顺序）
     js_budget  = 10000         # 无头浏览器给 JS 渲染留的虚拟时间预算（毫秒）
+    front_matter = card        # YAML 头部：card（信息卡）/ raw（原文）/ off（不显示）
 
 主题目录: ~/.config/md-preview/themes/   资源目录: ~/.config/md-preview/assets/
 缓存目录: ~/.cache/md-preview/<hash>/
@@ -68,7 +70,7 @@ BUNDLED_THEMES: dict[str, pathlib.Path] = {
     "default": PACKAGE_FALLBACK,
     "default-dark": PACKAGE_FALLBACK_DARK,
 }
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 CHROMIUM_CANDIDATES = [
     "/usr/bin/microsoft-edge-stable",
@@ -103,8 +105,8 @@ body { margin: 0; }
 #write hr { border: none; border-top: 1px solid currentColor; opacity: .25; margin: 1.6em 0; }
 
 /* 代码块：有些主题把 padding/font 放在 .CodeMirror-lines 上，我们没有那层元素，这里补上 */
-:root { --mp-fence-bg: #f6f8fa; --mp-inline-bg: #f6f8fa; }
-body.md-dark { --mp-fence-bg: #22272e; --mp-inline-bg: #2d333b; }
+:root { --mp-fence-bg: #f6f8fa; --mp-inline-bg: #f6f8fa; --mp-frontmatter-bg: #f8f9fb; }
+body.md-dark { --mp-fence-bg: #22272e; --mp-inline-bg: #2d333b; --mp-frontmatter-bg: #20252e; }
 
 .md-fences {
   padding: .9em 1em;
@@ -128,6 +130,8 @@ code {
   border-radius: 4px;
   font-family: "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono",
                "Noto Sans Mono CJK SC", monospace;
+}
+
 /* ---- 数学公式与图表（资源缺失时降级为代码块显示） ---- */
 .math-inline { white-space: nowrap; }
 .math-block { margin: 1em 0; text-align: center; overflow-x: auto; overflow-y: hidden; break-inside: avoid; page-break-inside: avoid; }
@@ -136,7 +140,51 @@ code {
 pre.mermaid-source { white-space: pre-wrap; font-size: .9em; }
 .mermaid { margin: 1em 0; text-align: center; break-inside: avoid; page-break-inside: avoid; }
 .mermaid svg { max-width: 100%; height: auto; }
+
+/* ---- YAML 头部（front matter）信息卡 ---- */
+.front-matter {
+  margin: 0 0 1.6em;
+  padding: .85em 1.1em;
+  border: 1px solid rgba(127, 127, 127, .35);
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-left-width: 3px;
+  border-left-color: color-mix(in srgb, currentColor 45%, transparent);
+  border-radius: 8px;
+  background-color: var(--mp-frontmatter-bg);
+  font-size: .95em;
+  line-height: 1.6;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
+.front-matter .fm-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5em; margin-bottom: .35em; }
+.front-matter .fm-name { font-size: 1.22em; font-weight: 600; font-family: "JetBrains Mono", "Cascadia Code", "Noto Sans Mono CJK SC", monospace; }
+.front-matter .fm-chip {
+  font-size: .78em;
+  padding: .05em .55em;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 999px;
+  opacity: .8;
+  font-family: "JetBrains Mono", "Cascadia Code", "Noto Sans Mono CJK SC", monospace;
+}
+.front-matter dl { margin: 0; }
+.front-matter dt {
+  margin-top: .55em;
+  font-size: .78em;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  opacity: .6;
+}
+.front-matter dd { margin: .1em 0 0; }
+.front-matter .fm-chips { display: flex; flex-wrap: wrap; gap: .35em; margin: .1em 0 0; padding: 0; list-style: none; }
+.front-matter .fm-chips li {
+  font-size: .85em;
+  padding: .05em .5em;
+  border-radius: 4px;
+  background-color: var(--mp-inline-bg);
+  font-family: "JetBrains Mono", "Cascadia Code", "Noto Sans Mono CJK SC", monospace;
+}
+.front-matter .fm-raw { margin: 0; background: none; border: 0; padding: 0; }
+.front-matter .fm-hint { margin: .4em 0 0; font-size: .8em; opacity: .7; }
 """
 
 # ---------------------------------------------------------------- 打印 CSS（主题之后）
@@ -645,6 +693,161 @@ document.addEventListener('DOMContentLoaded', function () {{
 </script>"""
         )
     return "\n".join(parts)
+# ---------------------------------------------------------------- YAML 头部（front matter）
+# 像 SKILL.md / 博客文章这种带 YAML 头部的文档，头部会被渲染成一张信息卡而不是一堆正文。
+FRONT_MATTER_MODES = ("card", "raw", "off")
+_TITLE_KEYS = ("name", "title")
+_CHIP_KEYS = ("version", "license", "author", "authors", "created", "updated", "date", "status", "model")
+_FM_KEY = re.compile(r"^[ \t]*[A-Za-z_][\w.-]*[ \t]*:", re.M)
+
+
+def _yaml_module():
+    """有 PyYAML 就用它（更准），没有就退回内置的简单解析器。"""
+    try:
+        import yaml  # noqa: PLC0415
+    except ImportError:
+        return None
+    return yaml
+
+
+def split_front_matter(text: str) -> tuple[str | None, str]:
+    """拆出文档开头的 YAML 头部，返回 (yaml 源码, 正文)；没有头部时返回 (None, 原文)。
+
+    只有 `---` 成对出现、且中间确实像 `key: value` 时才认作头部，
+    免得把「以分隔线开头的普通文档」也吃掉。
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None, text
+    for index in range(1, len(lines)):
+        if lines[index].strip() == "---":
+            head = lines[1:index]
+            if not _FM_KEY.search("\n".join(head)):
+                return None, text  # 中间没有 key:，当普通内容处理
+            return "\n".join(head), "\n".join(lines[index + 1 :])
+    return None, text
+
+
+def _plain_scalar(value: str) -> object:
+    text = value.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "'\"":
+        return text[1:-1]
+    if text.lower() in ("true", "false"):
+        return text.lower() == "true"
+    if re.fullmatch(r"-?\d+", text):
+        return int(text)
+    if re.fullmatch(r"-?\d+\.\d+", text):
+        return float(text)
+    return text
+
+
+def _parse_simple_yaml(source: str) -> dict[str, object] | None:
+    """内置的极简 YAML 子集解析器：标量、引号、行内列表、块列表、块标量。
+
+    只覆盖 Markdown 头部常见写法；遇到嵌套映射等复杂结构返回 None（退化为原文显示）。
+    装了 PyYAML 时走不到这里。
+    """
+    result: dict[str, object] = {}
+    lines = source.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if not line.strip() or line.strip().startswith("#"):
+            index += 1
+            continue
+        if line[:1].isspace() or ":" not in line:
+            return None
+        key, _, value = line.partition(":")
+        key, value = key.strip(), value.strip()
+        if not key:
+            return None
+        if value in ("|", "|-", ">", ">-"):  # 块标量
+            index += 1
+            block: list[str] = []
+            while index < len(lines) and (not lines[index].strip() or lines[index][:1].isspace()):
+                block.append(lines[index].strip())
+                index += 1
+            text = "\n".join(block).strip()
+            result[key] = " ".join(text.split()) if value.startswith(">") else text
+            continue
+        if value.startswith("[") and value.endswith("]"):  # 行内列表
+            result[key] = [item for item in (_plain_scalar(p) for p in value[1:-1].split(",")) if item != ""]
+            index += 1
+            continue
+        if value == "":  # 可能是块列表
+            index += 1
+            items: list[object] = []
+            while index < len(lines) and lines[index][:1].isspace() and lines[index].strip():
+                stripped = lines[index].strip()
+                if not stripped.startswith("- "):
+                    return None
+                items.append(_plain_scalar(stripped[2:]))
+                index += 1
+            result[key] = items if items else ""
+            continue
+        result[key] = _plain_scalar(value)
+        index += 1
+    return result or None
+
+
+def parse_front_matter(source: str) -> dict[str, object] | None:
+    """解析 YAML 头部；拿不到映射就返回 None（调用方退化为原文显示）。"""
+    module = _yaml_module()
+    if module is not None:
+        try:
+            data = module.safe_load(source)
+        except Exception:  # YAML 有语法错误时再用内置解析器兜一次
+            data = None
+        if isinstance(data, dict):
+            return {str(key): value for key, value in data.items()}
+        if data is None:
+            return _parse_simple_yaml(source)
+        return None
+    return _parse_simple_yaml(source)
+
+
+def _fm_value_html(value: object) -> str:
+    """字段值：列表 → chips，嵌套映射 → 子 dl，多行 → pre，其余按行内。"""
+    if isinstance(value, (list, tuple)):
+        chips = "".join(f"<li>{html_mod.escape(str(item))}</li>" for item in value)
+        return f'<ul class="fm-chips">{chips}</ul>'
+    if isinstance(value, dict):
+        rows = "".join(
+            f"<dt>{html_mod.escape(str(k))}</dt><dd>{_fm_value_html(v)}</dd>" for k, v in value.items()
+        )
+        return f'<dl class="fm-nested">{rows}</dl>'
+    text = str(value)
+    if "\n" in text:
+        return f"<pre>{html_mod.escape(text)}</pre>"
+    return html_mod.escape(text)
+
+
+def front_matter_html(meta: dict[str, object] | None, raw: str, mode: str = "card") -> str:
+    """把 YAML 头部渲染成信息卡（mode: card / raw / off）。"""
+    if mode == "off":
+        return ""
+    if mode == "raw" or meta is None:
+        hint = '<p class="fm-hint">头部无法解析为映射，按原文显示</p>' if meta is None else ""
+        return (
+            '<section class="front-matter" data-format="raw">'
+            f'<pre class="fm-raw">{html_mod.escape(raw)}</pre>{hint}</section>\n'
+        )
+
+    title_key = next((k for k in _TITLE_KEYS if str(meta.get(k, "")).strip()), None)
+    title = str(meta[title_key]) if title_key else ""
+    chips = [f"{k} {meta[k]}" for k in _CHIP_KEYS if k in meta and not isinstance(meta[k], (list, dict))]
+    keys = [k for k in meta if k not in _TITLE_KEYS and k not in _CHIP_KEYS]
+    keys.sort(key=lambda k: 0 if k in ("description", "summary") else 1)  # 描述放最前面
+
+    head = ""
+    if title or chips:
+        chip_html = "".join(f'<span class="fm-chip">{html_mod.escape(chip)}</span>' for chip in chips)
+        head = f'<div class="fm-title"><span class="fm-name">{html_mod.escape(title)}</span>{chip_html}</div>'
+    rows = "".join(f"<dt>{html_mod.escape(str(key))}</dt><dd>{_fm_value_html(meta[key])}</dd>" for key in keys)
+    fields = f'<dl class="fm-fields">{rows}</dl>' if rows else ""
+    return f'<section class="front-matter" data-format="yaml">{head}{fields}</section>\n'
+
+
 # ---------------------------------------------------------------- 渲染
 def _theme_link(css_path: pathlib.Path | None, media: str | None = None) -> str:
     if css_path is None:
@@ -692,11 +895,19 @@ def render_html(src_path: pathlib.Path, css: str, cfg: dict[str, str], mode: str
     outdir = CACHE / key
     outdir.mkdir(parents=True, exist_ok=True)
 
-    text = src_path.read_text(encoding="utf-8", errors="replace")
+    raw_text = src_path.read_text(encoding="utf-8", errors="replace")
+    fm_mode = (cfg.get("front_matter", "card") or "card").strip().lower()
+    if fm_mode not in FRONT_MATTER_MODES:
+        fm_mode = "card"
+    fm_source, text = split_front_matter(raw_text)
+    if fm_mode == "off":
+        fm_source = None  # off = 剥掉头部但不渲染（既不显示卡片，也不留原始 YAML）
+    fm_meta = parse_front_matter(fm_source) if fm_source is not None else None
+    fm_card = front_matter_html(fm_meta, fm_source or "", fm_mode) if fm_source is not None else ""
     katex_dir = resolve_assets("katex", cfg) if _flag_on(cfg, "math") else None
     mermaid_dir = resolve_assets("mermaid", cfg) if _flag_on(cfg, "mermaid") else None
     md, HtmlFormatter = make_markdown(math=katex_dir is not None, mermaid=mermaid_dir is not None)
-    body = _add_heading_ids(md.render(text))
+    body = fm_card + _add_heading_ids(md.render(text))
 
     needs_math = "data-tex=" in body
     needs_mermaid = '<pre class="mermaid">' in body
@@ -713,6 +924,10 @@ def render_html(src_path: pathlib.Path, css: str, cfg: dict[str, str], mode: str
     first = re.search(r"<h1[^>]*>(.*?)</h1>", body, re.S)
     if first:
         title = re.sub(r"<[^>]+>", "", first.group(1)).strip() or title
+    elif fm_meta:
+        fm_title = str(fm_meta.get("name") or fm_meta.get("title") or "").strip()
+        if fm_title:
+            title = fm_title
 
     links = _theme_link(active, None)
     if dark is not None and dark != active:
@@ -947,6 +1162,7 @@ def run(args: list[str]) -> int:
         ("--dark-theme", "dark_theme"),
         ("--pdf-theme", "pdf_theme"),
         ("--assets-dir", "assets_dir"),
+        ("--front-matter", "front_matter"),
     ):
         if opt in args:
             i = args.index(opt)

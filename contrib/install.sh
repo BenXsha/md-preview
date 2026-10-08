@@ -85,10 +85,12 @@ else
 # mermaid    : auto / off —— Mermaid 图表渲染开关
 # assets_dir : 自定义 KaTeX / Mermaid 所在目录（留空 = 默认查找顺序）
 # js_budget  : 转 PDF 时给 JS 渲染留的毫秒预算（默认 10000）
+# front_matter: card / raw / off —— YAML 头部显示成信息卡 / 原文 / 不显示
 theme      = default
 dark_theme = default-dark
 math       = auto
 mermaid    = auto
+front_matter = card
 pdf_theme  =
 EOF
     echo "   写入 $CONF_DIR/config"

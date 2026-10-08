@@ -175,6 +175,29 @@ $ md-preview --no-math --no-mermaid notes.md
 - Code highlighting needs none of this: Pygments runs server-side, and the token classes it emits follow the
   theme (see above).
 
+## Front matter (YAML header)
+
+Documents such as `SKILL.md`, blog posts and note templates start with a YAML header. Markdown would turn it into
+a stray horizontal rule plus a mangled heading — md-preview renders it as a **metadata card** instead:
+
+```console
+$ md-preview --front-matter card SKILL.md   # default: name/version/date chips + description + the rest
+$ md-preview --front-matter raw SKILL.md    # verbatim YAML in a code block
+$ md-preview --front-matter off SKILL.md    # strip the header completely
+```
+
+The card shows `name`/`title` as its heading (also used for the window title when there is no H1), `version`,
+`license`, `author`, `created`, `updated`, `date`, `status`, `model` as chips, lists (`tags`, `keywords`, …) as
+chip rows, and everything else as key/value rows with `description` first.
+
+- Parsing uses [PyYAML](https://pyyaml.org/) when it is installed and a built-in subset parser otherwise
+  (scalars, quotes, inline lists, block lists, block scalars); anything it cannot parse is shown verbatim in the
+  card with a short note instead of being dropped.
+- A document that merely starts with `---` (a horizontal rule) is **not** treated as front matter — the header
+  must contain at least one `key:` line and be closed by `---`.
+- Style hooks: `.front-matter`, `.fm-title`, `.fm-name`, `.fm-chip`, `.fm-fields`, `.fm-chips`, `.fm-raw` and
+  the `--mp-frontmatter-bg` variable (see [`themes/README.md`](themes/README.md)).
+
 ## Configuration
 
 `~/.config/md-preview/config`:

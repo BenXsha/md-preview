@@ -152,6 +152,27 @@ $ python3 tools/theme-gallery.py     # 每个主题一张 PNG，并拼成一张�
 - 有些主题把页面底色交给宿主应用，自己只定义 `--bg-color`。这种情况 md-preview 会补上
   `body { background-color: var(--bg-color, …) }`，并按深色主题处理。
 
+## YAML 头部（front matter）
+
+`SKILL.md`、博客文章、笔记模板这类文件都以 YAML 头部开头。Markdown 会把它渲染成一条孤立的分隔线加一个
+被吃坏的标题 —— md-preview 改成渲染成一张**信息卡**：
+
+```console
+$ md-preview --front-matter card SKILL.md   # 默认：name/version/日期做 chips + description + 其余字段
+$ md-preview --front-matter raw SKILL.md    # 原文放进代码块
+$ md-preview --front-matter off SKILL.md    # 直接去掉头部
+```
+
+卡片把 `name`/`title` 作为标题（文档没有 H1 时也用作窗口标题），`version`、`license`、`author`、`created`、
+`updated`、`date`、`status`、`model` 做成 chips，列表（`tags`、`keywords`…）渲染成 chip 行，
+其余字段按「键/值」排列，`description` 排在最前面。
+
+- 解析优先用 [PyYAML](https://pyyaml.org/)；没装就用内置的子集解析器（标量、引号、行内列表、块列表、
+  块标量）。两者都解析不出时，在卡片里原样显示并给出提示，而不是把内容丢掉。
+- 只是以 `---` 开头的普通文档（分隔线）**不会**被当成头部：必须中间至少有一行 `key:`，并且有结束的 `---`。
+- 样式钩子：`.front-matter`、`.fm-title`、`.fm-name`、`.fm-chip`、`.fm-fields`、`.fm-chips`、`.fm-raw`
+  以及 `--mp-frontmatter-bg` 变量（见 [`themes/README.md`](themes/README.md)）。
+
 ## 公式与图表
 
 ```console

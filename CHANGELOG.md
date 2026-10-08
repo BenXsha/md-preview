@@ -2,6 +2,32 @@
 
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号用 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] - 2025-10-08
+
+**YAML 头部（front matter）** 不再被渲染成一条孤立分隔线加一个被吃坏的标题，而是渲染成一张信息卡 ——
+主要面向 `SKILL.md` 这类带 `name` / `description` / `version` 的文档。
+
+### Added
+
+- 新配置项 `front_matter`（`card` / `raw` / `off`，默认 `card`）与新开关 `--front-matter {card,raw,off}`：
+  - `card`：`name`/`title` 作标题，`version`/`license`/`author`/`created`/`updated`/`date`/`status`/`model`
+    作 chips，列表（`tags`、`keywords`…）作 chip 行，其余字段键值排列，`description` 排最前；
+  - `raw`：原文放进代码块；
+  - `off`：剥掉头部（既不显示卡片，也不留原始 YAML）。
+- 解析优先用 PyYAML，没装则用内置子集解析器（标量 / 引号 / 行内列表 / 块列表 / 块标量）；
+  两者都解析不出时在卡片里原样显示并给出提示，不丢内容。
+- 文档没有 H1 时，窗口标题取头部里的 `name` / `title`。
+- 安全判定：只有 `---`成对出现**且**中间至少有一行 `key:` 才当头部，以分隔线开头的普通文档不受影响。
+- 样式钩子都加了前缀类名（`.front-matter` / `.fm-*`）与 `--mp-frontmatter-bg` 变量，
+  深浅主题各自一套取值；`break-inside: avoid` 让卡片尽量不跨页断开。
+- 测试：新增 9 项（拆分判定、PyYAML 路径、无 PyYAML 的兜底解析、嵌套结构拒绝、卡片结构、
+  三种模式、render_html 集成与标题回退）。
+
+### Fixed
+
+- 顺手修掉一处 CSS 作用域错误：上一版把公式/图表的样式写进了 `code { … }` 规则里
+  （现代 CSS 嵌套下会变成 `code .math-block` 这类后代选择器），现在已提到顶层。
+
 ## [0.3.0] - 2025-10-08
 
 内容能力补齐：**数学公式**（KaTeX）与 **Mermaid 图表** 可以在 HTML 与 PDF 里正常渲染了；
