@@ -201,27 +201,30 @@ text/markdown=md-preview.desktop;md-preview-browser.desktop;okularApplication_md
 md-preview/
 ├── src/md_preview/
 │   ├── cli.py              # 全部实现（自包含单文件，可直接拷到 ~/.local/bin）
-│   └── fallback.css         # 无主题时的兜底样式
+│   └── fallback.css        # 无主题时的兜底样式
 ├── bin/md-preview          # 源码仓库直接运行的启动器
-├── contrib/
-│   ├── install.sh          # 用户级安装（脚本 + desktop + mimeapps 顺序）
-│   ├── uninstall.sh
-│   └── *.desktop.in
+├── contrib/                # install.sh / uninstall.sh / merge-mimeapps.py / *.desktop.in
 ├── docs/kde-dolphin-middle-click.md
-├── tools/
-│   ├── theme-gallery.py    # 给所有主题截图 + 拼版，挑主题用
-│   └── probe-styles.py     # CDP 读计算样式，验证主题是否真的生效（开发用）
-├── tests/                  # pytest：颜色解析 / 深浅判定 / token 映射 / 渲染端到端
-└── themes/README.md        # 主题目录说明与许可
+├── tools/                  # theme-gallery.py（主题截图拼版）、probe-styles.py（CDP 校验）
+├── tests/                  # pytest：纯函数 / 渲染结构 / mimeapps 合并 / 端到端 PDF（27 项）
+├── themes/README.md        # 主题来源、许可、自己写主题的要点
+├── Makefile                # make help / test / install / gallery / probe
+├── pyproject.toml          # pipx install . 安装，console script = md-preview
+└── CHANGELOG.md · LICENSE · README.md
 ```
 
 ## 开发
 
 ```console
-$ python3 -m pytest -q                       # 单元 + 端到端（端到端需要 Edge/Chrome）
+$ make help                                  # 常用任务一览（test / install / gallery / probe）
+$ python3 -m pytest -q                       # 全部测试（端到端需要 Edge/Chrome）
+$ python3 -m pytest -q -k "not end_to_end"   # 只跑不需要浏览器的部分
 $ ./bin/md-preview --theme night tests/sample.md
 $ python3 tools/theme-gallery.py             # 主题对比图
 ```
+
+测试依赖 `pytest`：`pipx install pytest`，或在一个 venv 里 `pip install pytest`（项目依赖只有
+`markdown-it-py` 和 `Pygments`，用 `python3 -m venv --system-site-packages` 可以直接复用系统的）。
 
 ## 为什么不是改 Okular 插件
 
