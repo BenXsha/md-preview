@@ -3,7 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "md-preview"
+# PyPI 上的 `md-preview` 已被别的项目占用（Bootstrap 风格的浏览器预览），所以发行名带 kde 后缀；
+# 命令名、仓库名、AUR 包名都仍然是 md-preview（pipx install md-preview-kde → 得到 md-preview 命令）。
+name = "md-preview-kde"
 version = "0.4.0"
 description = "Render Markdown into styled PDF/HTML with plain-CSS themes — built for KDE Dolphin middle-click preview"
 readme = "README.md"
@@ -40,12 +42,13 @@ md-preview = "md_preview.cli:main"
 Homepage = "https://github.com/BenXsha/md-preview"
 Repository = "https://github.com/BenXsha/md-preview"
 Issues = "https://github.com/BenXsha/md-preview/issues"
+Changelog = "https://github.com/BenXsha/md-preview/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
 
 [tool.setuptools.package-data]
-md_preview = ["fallback.css"]
+md_preview = ["fallback.css", "fallback-dark.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

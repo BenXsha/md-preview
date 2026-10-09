@@ -20,3 +20,6 @@ venv/
 *.pdf
 !docs/**/*.pdf
 .cache/
+
+# 演示产物：GIF 入库（README 顶部在用），MP4 用 tools/middle-click-demo.py 现生成
+demo/*.mp4

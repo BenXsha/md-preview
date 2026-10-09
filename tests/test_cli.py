@@ -133,6 +133,33 @@ def test_list_themes_ignores_asset_subdirs(tmp_path, monkeypatch):
     assert "font" not in cli.list_themes()  # 资源子目录里的 font.css 不算主题
 
 
+def test_tools_compile(tmp_path):
+    """tools/ 下的脚本不进包、平时跑不到，语法错误不该靠 CI 才发现。"""
+    import py_compile
+
+    for tool in sorted((REPO / "tools").glob("*.py")):
+        py_compile.compile(str(tool), cfile=str(tmp_path / f"{tool.stem}.pyc"), doraise=True)
+
+
+def test_version_is_consistent_everywhere():
+    """发布工作流的前提：标签 = pyproject version = __version__ = CHANGELOG 里最新的版本章节。"""
+    pyproject = (REPO / "pyproject.toml").read_text(encoding="utf-8")
+    in_pyproject = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.M).group(1)
+    assert in_pyproject == cli.__version__
+    helper = load_module("release_meta", REPO / "contrib" / "set-repo-metadata.py")
+    assert helper.versions()[0] == cli.__version__, "CHANGELOG 最新的版本章节应与 __version__ 一致"
+
+
+def test_packaged_data_covers_all_bundled_themes():
+    """自带主题必须全部写进 package-data；漏一个，pip/PyPI 装出来的 default-dark 就会消失。"""
+    text = (REPO / "pyproject.toml").read_text(encoding="utf-8")
+    section = re.search(r"\[tool\.setuptools\.package-data\]\s*(.*?)(?=\n\[|\Z)", text, re.S)
+    assert section, "pyproject 里找不到 package-data"
+    declared = set(re.findall(r'"([^"]+)"', section.group(1)))
+    missing = {p.name for p in cli.BUNDLED_THEMES.values()} - declared
+    assert not missing, f"自带主题没打进包里: {sorted(missing)}"
+
+
 def test_bundled_theme_falls_back_to_user_dir(tmp_path, monkeypatch):
     """单文件安装（包里没有自带主题）时，同名主题应落到用户主题目录。"""
     (tmp_path / "default.css").write_text("body{}", encoding="utf-8")

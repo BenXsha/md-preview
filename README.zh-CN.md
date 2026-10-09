@@ -17,8 +17,12 @@ KDE 里对文件按鼠标中键，打开的是**该 MIME 类型应用列表里�
 （上游需求单 [400529](https://bugs.kde.org/show_bug.cgi?id=400529)、
 [426682](https://bugs.kde.org/show_bug.cgi?id=426682) 至今开着）。
 
-`md-preview 不去改 Okular**，而是接管中键那个位置，把渲染交给完整的 CSS 引擎：于是预览有了真正的排版、
+**md-preview 不去改 Okular**，而是接管中键那个位置，把渲染交给完整的 CSS 引擎：于是预览有了真正的排版、
 真正的深色模式、可自由更换的主题；Okular 继续做它擅长的事（翻页、缩放、批注）。
+
+![Dolphin 中键 → 排版好的 PDF](demo/md-preview-demo.gif)
+
+*动图由 `python3 tools/middle-click-demo.py` 用 `tests/sample.md` 生成。*
 
 ## 特性
 
@@ -79,6 +83,9 @@ $ git pull && ./contrib/install.sh
 $ pipx install .          # 或 pip install --user .
 $ md-preview --version
 ```
+
+PyPI 上的**发行名**是 **`md-preview-kde`**（`md-preview` 已被别的项目占用），命令名仍然是 `md-preview`；
+Arch 用户也可以用 `contrib/aur/PKGBUILD`（AUR 包名 `md-preview`）。
 
 ### 只要一个文件
 
@@ -272,7 +279,8 @@ bin/md-preview            从仓库直接运行的启动器
 contrib/                  install.sh、uninstall.sh、merge-mimeapps.py、槽位排序、desktop 与服务菜单模板
 docs/                     Dolphin 中键机制、主题许可自查
 themes/README.md          主题约定与来源
-tools/                    主题截图拼版、DevTools 协议样式校验
+tools/                    主题截图拼版、DevTools 协议样式校验、演示动图录制
+demo/                     上面那张动图（用 tools/middle-click-demo.py 重新生成）
 tests/                    pytest（纯函数 + DOM 结构 + mimeapps 合并 + 可选端到端 PDF）
 MANUAL-CHECK.md           人工验收清单（超长代码行折行、PDF 不丢字）
 .github/workflows/        CI

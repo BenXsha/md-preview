@@ -5,6 +5,20 @@
 ## [Unreleased]
 
 ### Added
+- **对外分享的准备**（为「把这东西发给社区」补齐硬门槛）：
+  - PyPI 发行名改为 `md-preview-kde`（`md-preview` 已被别的项目占用；命令名仍是 `md-preview`），
+    并把 `fallback-dark.css` 补进 package-data —— 此前 pip/PyPI 装出来的 `default-dark` 主题会消失；
+    新增两项测试守住「自带主题全部打进包」与「标签 = version = __version__ = CHANGELOG 章节」；
+  - 新增 `.github/workflows/release.yml`：打 `vX.Y.Z` 标签 → 校验版本一致 → 跑测试 → 构建 sdist/wheel →
+    PyPI 可信发布（OIDC，仓库不存 token）→ 用 CHANGELOG 章节建 GitHub Release；支持 `dry_run` 空跑；
+  - 新增 `contrib/aur/PKGBUILD` + `contrib/aur/README.md`（AUR 包名 `md-preview`；本机无 makepkg，未实测，
+    文件里写明了首次提交前要跑的 `updpkgsums` / `makepkg -si` / `namcap` 步骤）；
+  - 新增 `docs/share/`：两个 Okular wish 的评论草稿、discuss.kde.org 帖子、r/kde 与中文社区短稿，
+    以及一份「先分享知识再分享工具」的发布清单与常见质疑应答；
+  - 新增 `tools/middle-click-demo.py`：CDP 抓帧 + ffmpeg 合成演示 GIF/MP4，Makefile 加 `make demo`，
+    README 顶部嵌入动图，`.gitignore` 忽略可再生的 `demo/*.mp4`。
+- README 中英安装段：pipx 改用 `git+https://…` 并说明 PyPI 发行名与 AUR 包；顺手修掉中文 README 里一处
+  粗体标记笔误（`` `md-preview 不去改 Okular** `` → `**md-preview 不去改 Okular**`）。
 - **升级说明**：`install.sh` 是把 `cli.py` 拷到 `~/.local/bin/md-preview`，中键槽位跑的是那份拷贝 ——
   `git pull` 后必须重跑安装脚本才会生效。README（中英）新增「升级」小节，`install.sh` 结尾也加了一行提示。
 - **超长代码行不再被裁掉**：代码块改成折行（屏幕与打印一致，不再出现横向滚动条）；`--no-code-wrap`

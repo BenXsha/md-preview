@@ -1,0 +1,122 @@
+name: release
+
+# 打一个 vX.Y.Z 标签就发版：校验 标签/版本/CHANGELOG 三者一致 → 跑测试 → 构建 sdist+wheel
+# → 发到 PyPI → 用 CHANGELOG 对应章节建 GitHub Release。
+#
+# PyPI 侧用「可信发布」（Trusted Publishing），仓库里不需要存任何 token。第一次发版前做两件事：
+#   1. pypi.org → 你的项目（md-preview-kde）→ Publishing → 添加 GitHub publisher：
+#      owner=BenXsha  repo=md-preview  workflow=release.yml  environment=pypi
+#      （PyPI 上还没有这个项目时，先在 "Publishing" 页面用 "pending publisher" 预登记，同名即可）
+#   2. 仓库 Settings → Environments 建一个名为 pypi 的 environment（不加保护规则也行）
+#
+# 想先空跑一次不真发：Actions → release → Run workflow → dry_run = true
+# （只校验 + 构建 + 上传 artifacts，不碰 PyPI、不建 Release）
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的标签，例如 v0.5.0（该标签需已存在）"
+        required: true
+      dry_run:
+        description: "只构建、不发布"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write # 建 Release
+  id-token: write # PyPI 可信发布（OIDC）
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 取出本次要发的标签
+        id: tag
+        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      # 版本三处必须一致，否则发出去的包名与 CHANGELOG 对不上（发布是不可逆的，宁可在这一步失败）
+      - name: 校验 标签 = pyproject version = __version__ = CHANGELOG 章节
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          python - <<'PY'
+          import os, pathlib, re, sys
+
+          tag = os.environ["TAG"]
+          version = tag[1:] if tag.startswith("v") else tag
+          root = pathlib.Path(".")
+
+          pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
+          in_pyproject = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.M).group(1)
+          in_code = re.search(
+              r'^__version__\s*=\s*"([^"]+)"',
+              (root / "src" / "md_preview" / "cli.py").read_text(encoding="utf-8"),
+              re.M,
+          ).group(1)
+          changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+          section = re.search(rf"^##\s*\[{re.escape(version)}\]", changelog, re.M)
+          if not section:
+              sys.exit(f"CHANGELOG.md 里没有 ## [{version}] 章节，先补章节再打标签")
+          body = changelog[section.end():].split("\n## ", 1)[0].strip()
+          if len(body) < 20:
+              sys.exit(f"CHANGELOG 的 [{version}] 章节几乎是空的，Release 说明会是空的")
+          if not (version == in_pyproject == in_code):
+              sys.exit(f"版本不一致：标签 {version} / pyproject {in_pyproject} / __version__ {in_code}")
+          print(f"✓ {version} 三处一致，CHANGELOG 章节 {len(body)} 字符")
+          PY
+
+      - name: 测试
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pytest -q
+
+      - name: 构建 sdist + wheel
+        run: |
+          pip install build
+          python -m build
+          ls -l dist
+
+      # 无论发不发都留一份产物，方便 dry_run 时下载检查
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: 发布到 PyPI
+        if: ${{ github.event_name == 'push' || github.event.inputs.dry_run != 'true' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: 建 GitHub Release（说明取自 CHANGELOG 章节）
+        if: ${{ github.event_name == 'push' || github.event.inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          python - <<'PY'
+          import importlib.machinery, importlib.util, os, pathlib
+
+          path = pathlib.Path("contrib/set-repo-metadata.py")
+          loader = importlib.machinery.SourceFileLoader("release_meta", str(path))
+          spec = importlib.util.spec_from_loader("release_meta", loader)
+          module = importlib.util.module_from_spec(spec)
+          loader.exec_module(module)  # 与 tests 里同一套用法：直接复用 CHANGELOG 解析
+          notes = module.release_notes(os.environ["TAG"].lstrip("v")) or ""
+          if not notes:
+              raise SystemExit("取不到 CHANGELOG 章节，拒绝建空的 Release")
+          pathlib.Path("release-notes.md").write_text(notes, encoding="utf-8")
+          print(f"✓ Release 说明 {len(notes)} 字符")
+          PY
+          # 已存在同名 Release 时改成 `gh release upload "$TAG" dist/* --clobber`
+          gh release create "$TAG" --title "$TAG" --notes-file release-notes.md dist/*

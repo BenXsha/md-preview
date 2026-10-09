@@ -1,0 +1,56 @@
+# Maintainer: BenXsha <7319722@qq.com>
+#
+# AUR 包名是 md-preview（未被占用）；PyPI 上的**发行名**是 md-preview-kde —— PyPI 的 md-preview
+# 已被别的项目占用。两个渠道提供的命令都叫 md-preview。
+#
+# 本文件按 Arch 打包规范写就，但作者本机是 Ubuntu，**没有跑过 makepkg**。首次提交到 AUR 前请在
+# 有 Arch 的机器/容器里过一遍：
+#     updpkgsums                        # 把下面的 SKIP 换成真实校验和
+#     makepkg -si                       # 真装一遍，确认 md-preview --version 与中键预览都可用
+#     namcap PKGBUILD *.pkg.tar.zst     # 静态检查
+#     makepkg --printsrcinfo > .SRCINFO # AUR 需要的元数据
+pkgname=md-preview
+pkgver=0.4.0
+pkgrel=1
+pkgdesc="Render Markdown into styled PDF/HTML with plain-CSS themes — Dolphin middle-click preview"
+arch=('any')
+url="https://github.com/BenXsha/md-preview"
+license=('MIT')
+depends=('python' 'python-markdown-it' 'python-pygments')
+optdepends=(
+  'chromium: 生成 PDF（也可以用 microsoft-edge-stable / google-chrome 等 Chromium 系浏览器）'
+  'python-linkify-it-py: 裸 URL 自动变成链接'
+  'python-pillow: tools/theme-gallery.py 的主题对比截图'
+)
+makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel')
+# 源码包按标签拉取：发新版本时改 pkgver，再 updpkgsums
+source=("$pkgname-$pkgver.tar.gz::https://github.com/BenXsha/md-preview/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP') # ← 提交前务必用 updpkgsums 换成真实值
+
+build() {
+  cd "$pkgname-$pkgver"
+  python -m build --wheel --no-isolation
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  # 标准 Python 打包：装模块 + console script（/usr/bin/md-preview）+ 包内自带主题
+  python -m installer --destdir="$pkgdir" dist/*.whl
+
+  # KDE 集成：desktop 项（PDF / 浏览器两条）与 Dolphin 右键服务菜单。
+  # 模板里的 @BIN@ 换成系统路径；中键槽位顺序仍需用户自己在 ~/.config/mimeapps.list 里排
+  # （见 docs/kde-dolphin-middle-click.md）。
+  install -d "$pkgdir/usr/share/applications" "$pkgdir/usr/share/kio/servicemenus"
+  local tpl
+  for tpl in contrib/md-preview.desktop.in contrib/md-preview-browser.desktop.in; do
+    sed 's|@BIN@|/usr/bin/md-preview|g' "$tpl" \
+      > "$pkgdir/usr/share/applications/$(basename "${tpl%.in}")"
+  done
+  sed 's|@BIN@|/usr/bin/md-preview|g' contrib/md-preview-servicemenu.desktop.in \
+    > "$pkgdir/usr/share/kio/servicemenus/md-preview-servicemenu.desktop"
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 THIRD-PARTY.md "$pkgdir/usr/share/licenses/$pkgname/THIRD-PARTY.md"
+  install -Dm644 docs/kde-dolphin-middle-click.md \
+    "$pkgdir/usr/share/doc/$pkgname/kde-dolphin-middle-click.md"
+}

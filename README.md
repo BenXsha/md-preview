@@ -21,6 +21,10 @@ and there is no way to style them (upstream wishes [400529](https://bugs.kde.org
 CSS engine, so your previews get real typography, real dark mode, and a theme of your choosing — while Okular
 keeps doing what it is good at (reading, zooming, annotating).
 
+![Dolphin middle-click → a themed PDF](demo/md-preview-demo.gif)
+
+*The demo is generated from `tests/sample.md` by `python3 tools/middle-click-demo.py`.*
+
 ## Features
 
 - **KDE-first workflow** — fills the Dolphin middle-click slot; `Shift+middle-click` for a browser preview;
@@ -83,6 +87,10 @@ next preview automatically — no need to clear `~/.cache/md-preview`.
 $ pipx install .          # or: pip install --user .
 $ md-preview --version
 ```
+
+On PyPI the distribution is called **`md-preview-kde`** (plain `md-preview` was already taken by an unrelated
+project there) — the command is still `md-preview`. Arch users can also use the packaged `contrib/aur/PKGBUILD`
+(AUR name `md-preview`).
 
 ### Single file
 
@@ -283,7 +291,8 @@ bin/md-preview            launcher for running straight from a clone
 contrib/                  install.sh, uninstall.sh, merge-mimeapps.py, MIME slot ordering, .desktop & service menu templates
 docs/                     Dolphin middle-click internals, theme licensing
 themes/README.md          theme contract and sources
-tools/                    theme screenshot sheet, DevTools-protocol style probe
+tools/                    theme screenshot sheet, DevTools-protocol style probe, demo recorder
+demo/                     demo GIF used above (regenerate with tools/middle-click-demo.py)
 tests/                    pytest suite (unit + DOM structure + MIME merge + optional end-to-end PDF)
 MANUAL-CHECK.md           manual acceptance sheet (long code lines, wrapping, nothing truncated)
 .github/workflows/        CI
