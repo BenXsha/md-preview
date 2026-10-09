@@ -5,6 +5,13 @@
 ## [Unreleased]
 
 ### Added
+- **超长代码行不再被裁掉**：代码块改成折行（屏幕与打印一致，不再出现横向滚动条）；`--no-code-wrap`
+  可让屏幕退回横向滚动 —— 打印始终折行，因为纸上没有滚动条，溢出内容会被无头浏览器直接裁掉（实测静默丢字）。
+- **`#write { overflow-wrap: anywhere }`**：一并修掉「行内代码超长被截断」与「表格单元格长串把列撑爆后
+  在 PDF 里丢字」（`break-word` 不够：它不影响 min-content 宽度，表格列照样会被撑爆）。
+- 测试：折行开关的单元用例，以及「长代码行 / 行内代码 / 表格长串的结尾仍在 PDF 文本层里」的端到端回归用例
+  （缺 poppler 的 `pdftotext` 时自动跳过）。
+- `MANUAL-CHECK.md`：人工验收用的渲染测试文件（长注释 / 长路径 / base64 / 行内代码 / 表格长串 + 验收清单）。
 
 - `contrib/set-repo-metadata.py`：把「仓库简介与话题」「按 CHANGELOG 建 Release」「删除调试分支」
   这三件必须走 GitHub API 的事收成一条命令（`--dry-run` 无需 token 即可预览将要做的事）。

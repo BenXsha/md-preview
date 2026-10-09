@@ -9,6 +9,9 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import pathlib
+import re
+import shutil
+import subprocess
 import sys
 
 import pytest
@@ -250,6 +253,26 @@ def test_mermaid_fence_depends_on_assets():
     assert '<pre class="mermaid">' in with_assets.render(fence)
     assert "mermaid-source" in without.render(fence)  # 缺资源时降级为代码块
 
+# ------------------------------------------------------------------ 代码块折行
+LONG_CODE_MD = "```python\ndef f():  # " + "很长的一段注释，" * 10 + "TAIL_CN\n```\n"
+
+
+def test_code_wrap_default_on_and_off_switch(tmp_path, monkeypatch):
+    _prepare(tmp_path, monkeypatch, None)
+    doc = tmp_path / "wrap.md"
+    doc.write_text(LONG_CODE_MD, encoding="utf-8")
+    html_path, _, _ = cli.render_html(doc, cli.BASE_CSS, {"theme": ""}, "html")
+    assert cli.CODE_WRAP_CSS in html_path.read_text(encoding="utf-8")
+    html_path, _, _ = cli.render_html(doc, cli.BASE_CSS, {"theme": "", "code_wrap": "off"}, "html")
+    assert cli.CODE_WRAP_CSS not in html_path.read_text(encoding="utf-8")
+
+
+def test_overflow_guards_in_base_and_print_css():
+    # 行内代码与表格长串：只有 anywhere 会影响 min-content 宽度，break-word 修不了表格列被撑爆
+    assert "overflow-wrap: anywhere" in cli.BASE_CSS
+    # 打印一律折行：纸上没有横向滚动，溢出内容会被无头浏览器直接裁掉
+    assert "white-space: pre-wrap !important" in cli.PRINT_CSS
+
 
 def test_flag_on_defaults_and_off_values():
     assert cli._flag_on({}, "math") is True
@@ -458,6 +481,32 @@ def test_end_to_end_math_and_mermaid(tmp_path, monkeypatch):
     data = pdf.read_bytes()
     assert data.startswith(b"%PDF")
     assert b"KaTeX" in data  # KaTeX 字体已内嵌 → 公式真的排版进 PDF 了
+@pytest.mark.skipif(
+    cli._find_chromium() is None or shutil.which("pdftotext") is None,
+    reason="需要 Chromium 系浏览器 + poppler 的 pdftotext（用来核对 PDF 文本层）",
+)
+def test_end_to_end_long_lines_survive_print(tmp_path, monkeypatch):
+    """超长行以前在 PDF 里被静默截断（print 布局只取可见区域），现在应当折行后完整落进文本层。"""
+    _prepare(tmp_path, monkeypatch, None)
+    doc = tmp_path / "long.md"
+    doc.write_text(
+        "# 长行\n\n```python\ndef f():  # " + "很长的一段注释，" * 10 + "TAILCODE777\n```\n\n"
+        "行内代码：`" + "x" * 120 + "TAILINLINE777`\n\n"
+        "| 列 |\n|---|\n| `" + "y" * 120 + "TAILCELL777` |\n",
+        encoding="utf-8",
+    )
+    html_path, outdir, meta = cli.render_html(doc, cli.BASE_CSS, {"theme": ""}, "pdf")
+    assert cli.CODE_WRAP_CSS in html_path.read_text(encoding="utf-8")
+    pdf = outdir / f"{doc.stem}.pdf"
+    assert cli.to_pdf(html_path, outdir, pdf, "wrap-sig") == pdf
+    text = subprocess.run(["pdftotext", "-layout", str(pdf), "-"], capture_output=True, text=True).stdout
+    # 折行可能正好断在标记中间，所以去掉空白/换行（以及可能插入的连字符）后再找；
+    # 被裁掉的话标记根本不会出现在文本层里
+    flat = re.sub(r"[\s\u00ad-]+", "", text)
+    for marker in ("TAILCODE777", "TAILINLINE777", "TAILCELL777"):
+        assert marker in flat, f"{marker} 没进 PDF 文本层（超长行被裁掉了）"
+
+
 
 
 # ------------------------------------------------------------------ 发布辅助脚本

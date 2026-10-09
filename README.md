@@ -42,6 +42,10 @@ keeps doing what it is good at (reading, zooming, annotating).
 - **Math and diagrams** — `$…$` / `$$…$$` are rendered by KaTeX, ` ```mermaid ` fences by Mermaid.
   Both are fetched on demand (`md-preview --fetch-assets`) and never bundled; without them the source is shown
   as plain text/code instead of failing. Dark themes switch Mermaid to its dark theme automatically.
+- **Long code lines are never cut off** — fences soft-wrap (screen and print alike, so no horizontal scrollbar),
+  and `#write { overflow-wrap: anywhere }` stops long inline code or table cells from overflowing the page — which
+  used to silently truncate characters in the PDF. `--no-code-wrap` brings the scrollbar back on screen only;
+  print always wraps, because on paper there is no scrollbar to reveal what a clipped line hid.
 
 ## Install
 
@@ -162,6 +166,7 @@ Two notes from hard-won experience:
 $ md-preview --fetch-assets              # KaTeX (with fonts) + Mermaid → ~/.config/md-preview/assets/
 $ md-preview notes.md                    # $…$, $$…$$ and ```mermaid fences now render
 $ md-preview --no-math --no-mermaid notes.md
+$ md-preview --no-code-wrap notes.md      # long code lines: scroll on screen (print still wraps)
 ```
 
 - Inline `$…$` and display `$$…$$` math are turned into placeholder elements in the HTML (so Markdown cannot
@@ -265,6 +270,7 @@ docs/                     Dolphin middle-click internals, theme licensing
 themes/README.md          theme contract and sources
 tools/                    theme screenshot sheet, DevTools-protocol style probe
 tests/                    pytest suite (unit + DOM structure + MIME merge + optional end-to-end PDF)
+MANUAL-CHECK.md           manual acceptance sheet (long code lines, wrapping, nothing truncated)
 .github/workflows/        CI
 ```
 

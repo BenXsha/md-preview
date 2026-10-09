@@ -39,6 +39,9 @@ KDE 里对文件按鼠标中键，打开的是**该 MIME 类型应用列表里�
 - **公式与图表** —— `$…$` / `$$…$$` 交给 KaTeX，` ```mermaid ` 代码块交给 Mermaid 渲染。
   两者都按需下载（`md-preview --fetch-assets`）、仓库不打包；缺资源时降级为源码显示而不是报错。
   深色主题会自动切换到 Mermaid 的 dark 主题。
+- **超长代码行不会被裁掉** —— 代码块折行（屏幕与打印一致，不再出现横向滚动条）；
+  `#write { overflow-wrap: anywhere }` 同时解决行内代码、表格长串撑破版面后在 PDF 里丢字的问题。
+  `--no-code-wrap` 可让屏幕退回横向滚动（打印始终折行：纸上没有滚动条，被裁掉的内容没法再找回来）。
 
 ## 安装
 
@@ -179,6 +182,7 @@ $ md-preview --front-matter off SKILL.md    # 直接去掉头部
 $ md-preview --fetch-assets              # 下载 KaTeX（含字体）+ Mermaid 到 ~/.config/md-preview/assets/
 $ md-preview notes.md                    # $…$、$$…$$ 与 ```mermaid 代码块都能渲染了
 $ md-preview --no-math --no-mermaid notes.md
+$ md-preview --no-code-wrap notes.md     # 超长代码行：屏幕改回横向滚动（PDF 仍折行）
 ```
 
 - 行内 `$…$` 与块级 `$$…$$` 会先被转成 HTML 里的占位元素（这样 Markdown 不会把 `$x_i$` 吃成斜体），
@@ -255,6 +259,7 @@ docs/                     Dolphin 中键机制、主题许可自查
 themes/README.md          主题约定与来源
 tools/                    主题截图拼版、DevTools 协议样式校验
 tests/                    pytest（纯函数 + DOM 结构 + mimeapps 合并 + 可选端到端 PDF）
+MANUAL-CHECK.md           人工验收清单（超长代码行折行、PDF 不丢字）
 .github/workflows/        CI
 ```
 

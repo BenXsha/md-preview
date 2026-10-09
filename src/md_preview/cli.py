@@ -9,7 +9,8 @@
 任何按这套约定书写的 CSS 都能直接用。自带两个 MIT 许可的主题（`default` / `default-dark`），
 开箱即用、不需要联网；需要更多风格时可安装自己信任的主题文件。
 
-内容能力：代码高亮（Pygments）、数学公式（KaTeX）、Mermaid 图表。后两者需要前端资源，
+内容能力：代码高亮（Pygments）、任务列表 / 告警块 / 脚注（内置规则，不需要额外资源）、数学公式（KaTeX）、
+Mermaid 图表。后两者需要前端资源，
 仓库不打包、也不会自动联网：用 `md-preview --fetch-assets` 下载到用户目录即可，
 系统若已装 KaTeX（如 Debian/Ubuntu 的 libjs-katex）会自动使用。
 
@@ -21,6 +22,7 @@
   md-preview --fetch-themes         可选：拉取带明确开源许可的社区主题集（见 THIRD-PARTY.md）
   md-preview --fetch-assets         可选：下载公式/图表用的 KaTeX、Mermaid（都是 MIT）
   md-preview --no-math --no-mermaid 关闭公式 / 图表渲染
+  md-preview --no-code-wrap 超长代码行改回横向滚动（PDF 仍折行，不丢字）
   md-preview --front-matter card     YAML 头部的显示方式：card / raw / off
   md-preview --install-theme <URL 或 .css 路径>
   md-preview --theme-dir            打印主题目录（把任意 .css 丢进去即可生效）
@@ -32,6 +34,7 @@
     pdf_theme  =               # PDF 模式专用主题（留空 = 用 theme）
     math       = auto          # auto / off：公式渲染开关
     mermaid    = auto          # auto / off：图表渲染开关
+    code_wrap   = auto          # auto / off：代码块折行；off = 屏幕横向滚动（打印一律折行）
     assets_dir =               # 自定义 KaTeX/Mermaid 所在目录（留空 = 用默认查找顺序）
     js_budget  = 10000         # 无头浏览器给 JS 渲染留的虚拟时间预算（毫秒）
     front_matter = card        # YAML 头部：card（信息卡）/ raw（原文）/ off（不显示）
@@ -85,7 +88,7 @@ VIEWER_PDF = "okular"
 # 主题缺失时的兜底主题（自带样式，见 style.css）
 FALLBACK_THEME = CONFIG_FILE.parent / "style.css"
 
-BRIDGE_VERSION = 3  # 桥接层变了就作废缓存
+BRIDGE_VERSION = 4  # 桥接层变了就作废缓存
 
 # ---------------------------------------------------------------- 桥接 CSS（主题之前）
 # 只放「主题不管的」和「主题缺失时的兜底」。选择器刻意保持低特异性，方便主题覆盖。
@@ -99,6 +102,10 @@ body { margin: 0; }
   font-family: "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei",
                "PingFang SC", "Segoe UI", system-ui, sans-serif;
   line-height: 1.75;
+  /* 超长不可断的词（行内代码、URL、base64）允许在任意位置断开：否则会撑爆表格列，
+     打印时被页面裁掉。用 anywhere 而不是 break-word —— 只有它影响 min-content 宽度，
+     break-word 不改变表格列的最小宽度，列照样会被撑爆。 */
+  overflow-wrap: anywhere;
 }
 #write img, #write video, #write svg { max-width: 100%; height: auto; }
 #write table { border-collapse: collapse; margin: 1em 0; }
@@ -186,6 +193,22 @@ pre.mermaid-source { white-space: pre-wrap; font-size: .9em; }
 .front-matter .fm-raw { margin: 0; background: none; border: 0; padding: 0; }
 .front-matter .fm-hint { margin: .4em 0 0; font-size: .8em; opacity: .7; }
 """
+# ---------------------------------------------------------------- 代码块折行（默认开）
+# 超长行（长注释、长路径）在屏幕上就折行，与 PDF 里的结果一致，不再出现横向滚动条；
+# 折行只是显示效果，复制粘贴仍然是完整的一行。--no-code-wrap 可退回横向滚动 ——
+# 但打印始终折行：纸上没有滚动条，溢出内容会被无头浏览器直接裁掉（见 PRINT_CSS）。
+CODE_WRAP_CSS = """\
+/* ---- 代码块折行：长注释 / 长路径不再需要横向滚动 ---- */
+#write pre.md-fences, #write .md-fences {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: visible;
+}
+#write pre.md-fences code, #write .md-fences code {
+  white-space: inherit;
+  overflow-wrap: inherit;
+}
+"""
 
 # ---------------------------------------------------------------- 打印 CSS（主题之后）
 PRINT_CSS = """\
@@ -202,6 +225,13 @@ PRINT_CSS = """\
   h1, h2, h3, h4, h5, h6 { break-after: avoid-page; page-break-after: avoid; }
   pre, table, blockquote, figure, img { break-inside: avoid-page; page-break-inside: avoid; }
   a { text-decoration: none; }
+  /* 超长代码行在纸上没有「横向滚动」这回事：print 布局只取可见区域，浏览器会直接截断丢字
+     （实测注释尾巴整段消失）。所以打印一律折行，且用 !important 压过主题里的 white-space: pre。 */
+  #write pre, #write pre code, #write .md-fences, #write .md-fences code {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+    overflow-x: visible !important;
+  }
 }
 """
 
@@ -857,7 +887,7 @@ def _theme_link(css_path: pathlib.Path | None, media: str | None = None) -> str:
 
 
 def _flag_on(cfg: dict[str, str], key: str, default: bool = True) -> bool:
-    """读一个开关型配置：math / mermaid，默认开；off/none/0/false/no 视为关。"""
+    """读一个开关型配置：math / mermaid / code_wrap…，默认开；off/none/0/false/no 视为关。"""
     value = cfg.get(key, "").strip().lower()
     if not value:
         return default
@@ -940,7 +970,7 @@ def render_html(src_path: pathlib.Path, css: str, cfg: dict[str, str], mode: str
         base=src_path.resolve().parent.as_uri() + "/",
         title=html_mod.escape(title),
         body_class=" md-dark" if is_dark else "",
-        bridge=BASE_CSS,
+        bridge=css + (CODE_WRAP_CSS if _flag_on(cfg, "code_wrap") else ""),
         page_bg=page_bg_css,
         pyg_light=HtmlFormatter(style="github-dark" if is_dark else "default").get_style_defs(".md-fences"),
         pyg_dark=HtmlFormatter(style="github-dark").get_style_defs(".md-fences"),
@@ -1170,7 +1200,11 @@ def run(args: list[str]) -> int:
                 cfg[key] = args[i + 1]
                 del args[i : i + 2]
 
-    for flag, key in (("--no-math", "math"), ("--no-mermaid", "mermaid")):
+    for flag, key in (
+        ("--no-math", "math"),
+        ("--no-mermaid", "mermaid"),
+        ("--no-code-wrap", "code_wrap"),
+    ):
         if flag in args:
             args.remove(flag)
             cfg[key] = "off"
@@ -1199,7 +1233,7 @@ def run(args: list[str]) -> int:
             if p and pathlib.Path(p).exists():
                 st = pathlib.Path(p).stat()
                 sig_parts += [p, str(st.st_mtime_ns), str(st.st_size)]
-        sig_parts += [str(cfg.get("math", "auto")), str(cfg.get("mermaid", "auto"))]
+        sig_parts += [str(cfg.get(k, "auto")) for k in ("math", "mermaid", "code_wrap")]
         sig = hashlib.sha1(":".join(sig_parts).encode("utf-8")).hexdigest()
 
         pdf_path = outdir / (src.stem + ".pdf")
