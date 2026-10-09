@@ -165,5 +165,6 @@ cat <<EOF
   md-preview --html 文档.md            用浏览器预览
 
 在 Dolphin 里对任意 .md 按【鼠标中键】即可看到效果；Shift+中键 = 浏览器预览。
+升级：git pull && ./contrib/install.sh —— 脚本是按「拷贝」安装的，pull 之后要重跑才会生效。
 不满意就 ./contrib/uninstall.sh 一键还原。
 EOF

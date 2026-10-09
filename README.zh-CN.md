@@ -60,6 +60,19 @@ $ ./contrib/install.sh             # 装脚本 + 自带主题 + desktop 项 + �
 `~/.local/share/applications`、`~/.local/share/kio/servicemenus`），改 `~/.config/mimeapps.list` 之前会先备份。
 卸载：`./contrib/uninstall.sh`（一键还原）。
 
+### 升级
+
+`install.sh` 是把 `src/md_preview/cli.py` **拷贝**到 `~/.local/bin/md-preview` 的，而 Dolphin 中键跑的是这份拷贝、
+不是你的 clone。所以 `git pull` 之后要重跑一次安装脚本，否则预览用的还是旧代码
+（`config`、已下载的主题与 `~/.config/md-preview/style.css` 都会保留）：
+
+```console
+$ git pull && ./contrib/install.sh
+```
+
+缓存 PDF 的签名包含「源文件 mtime + 脚本 + 主题 + 配置」，脚本一换就会自动重渲染，不用手动清
+`~/.cache/md-preview`。
+
 ### 用 pipx
 
 ```console

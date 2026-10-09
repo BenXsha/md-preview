@@ -64,6 +64,19 @@ It is fully per-user (`~/.local/bin`, `~/.config/md-preview`, `~/.cache/md-previ
 `~/.local/share/kio/servicemenus`) and it backs up `~/.config/mimeapps.list` before reordering the Markdown
 MIME slots. `./contrib/uninstall.sh` restores everything.
 
+### Updating
+
+`install.sh` **copies** `src/md_preview/cli.py` to `~/.local/bin/md-preview`, and the Dolphin middle-click slot runs
+that copy — not your clone. So after `git pull`, run the installer again, otherwise previews keep using the old code
+(your `config`, downloaded themes and `~/.config/md-preview/style.css` are left untouched):
+
+```console
+$ git pull && ./contrib/install.sh
+```
+
+Cached PDFs are keyed by source mtime + script + theme + config, so the refreshed script invalidates them on the
+next preview automatically — no need to clear `~/.cache/md-preview`.
+
 ### With pipx
 
 ```console
