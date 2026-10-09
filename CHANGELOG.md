@@ -12,6 +12,19 @@
 - 测试：折行开关的单元用例，以及「长代码行 / 行内代码 / 表格长串的结尾仍在 PDF 文本层里」的端到端回归用例
   （缺 poppler 的 `pdftotext` 时自动跳过）。
 - `MANUAL-CHECK.md`：人工验收用的渲染测试文件（长注释 / 长路径 / base64 / 行内代码 / 表格长串 + 验收清单）。
+- **内容规则**：新增三个手写的 markdown-it 规则（与公式规则同一风格，不引第三方插件、不联网）：
+  - **任务列表** `- [ ]` / `- [x]` → 真复选框（`.contains-task-list` / `.task-list-item` /
+    `input.task-list-item-checkbox`）；
+  - **告警块** `> [!NOTE]`（note / tip / important / warning / caution）→ `<blockquote class="alert alert-…">`
+    加 `.alert-title`；标记后同一行的文字当标题（Obsidian 写法），`-` / `+` 折叠标记忽略，
+    类型不认识或不在引用块首段时保持原样；
+  - **脚注** `[^1]` + `[^1]: 说明` → 上标引用 + 文末脚注区（多段定义、同一脚注多次引用各有回链锚、
+    脚注正文里还能再引用）。没定义的引用保持原文；没人引用的定义不显示（GitHub 语义，
+    `render_html` 会在 stderr 提醒一句，避免内容悄悄消失）。
+- 新配置项 `tasklists` / `alerts` / `footnotes` 与新开关 `--no-tasklists` / `--no-alerts` / `--no-footnotes`，
+  并纳入缓存签名；`tests/sample.md` 增加对应段落，主题截图与 CDP 抽查会一并覆盖。
+- 测试：任务列表、告警块、脚注各 1–2 项用例（多段脚注、自引用终止、关闭开关后回退原文、
+  未引用定义的 stderr 提醒）。
 
 - `contrib/set-repo-metadata.py`：把「仓库简介与话题」「按 CHANGELOG 建 Release」「删除调试分支」
   这三件必须走 GitHub API 的事收成一条命令（`--dry-run` 无需 token 即可预览将要做的事）。

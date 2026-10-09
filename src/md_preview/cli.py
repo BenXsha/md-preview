@@ -23,6 +23,7 @@ Mermaid 图表。后两者需要前端资源，
   md-preview --fetch-assets         可选：下载公式/图表用的 KaTeX、Mermaid（都是 MIT）
   md-preview --no-math --no-mermaid 关闭公式 / 图表渲染
   md-preview --no-code-wrap 超长代码行改回横向滚动（PDF 仍折行，不丢字）
+  md-preview --no-tasklists --no-alerts --no-footnotes 关掉任务列表 / 告警块 / 脚注解析
   md-preview --front-matter card     YAML 头部的显示方式：card / raw / off
   md-preview --install-theme <URL 或 .css 路径>
   md-preview --theme-dir            打印主题目录（把任意 .css 丢进去即可生效）
@@ -35,6 +36,9 @@ Mermaid 图表。后两者需要前端资源，
     math       = auto          # auto / off：公式渲染开关
     mermaid    = auto          # auto / off：图表渲染开关
     code_wrap   = auto          # auto / off：代码块折行；off = 屏幕横向滚动（打印一律折行）
+    tasklists  = auto          # auto / off：任务列表 `- [ ]` 渲染成复选框
+    alerts     = auto          # auto / off：告警块 `> [!NOTE]` / `> [!WARNING]`
+    footnotes  = auto          # auto / off：脚注 `[^1]` + `[^1]: 说明`
     assets_dir =               # 自定义 KaTeX/Mermaid 所在目录（留空 = 用默认查找顺序）
     js_budget  = 10000         # 无头浏览器给 JS 渲染留的虚拟时间预算（毫秒）
     front_matter = card        # YAML 头部：card（信息卡）/ raw（原文）/ off（不显示）
@@ -112,8 +116,17 @@ body { margin: 0; }
 #write hr { border: none; border-top: 1px solid currentColor; opacity: .25; margin: 1.6em 0; }
 
 /* 代码块：有些主题把 padding/font 放在 .CodeMirror-lines 上，我们没有那层元素，这里补上 */
-:root { --mp-fence-bg: #f6f8fa; --mp-inline-bg: #f6f8fa; --mp-frontmatter-bg: #f8f9fb; }
-body.md-dark { --mp-fence-bg: #22272e; --mp-inline-bg: #2d333b; --mp-frontmatter-bg: #20252e; }
+:root {
+  --mp-fence-bg: #f6f8fa; --mp-inline-bg: #f6f8fa; --mp-frontmatter-bg: #f8f9fb;
+  /* 告警块（> [!NOTE] …）的强调色 */
+  --mp-alert-note: #0969da; --mp-alert-tip: #1a7f37; --mp-alert-important: #8250df;
+  --mp-alert-warning: #9a6700; --mp-alert-caution: #cf222e;
+}
+body.md-dark {
+  --mp-fence-bg: #22272e; --mp-inline-bg: #2d333b; --mp-frontmatter-bg: #20252e;
+  --mp-alert-note: #6cb6ff; --mp-alert-tip: #57ab5a; --mp-alert-important: #b083f0;
+  --mp-alert-warning: #d4a72c; --mp-alert-caution: #f85149;
+}
 
 .md-fences {
   padding: .9em 1em;
@@ -192,6 +205,55 @@ pre.mermaid-source { white-space: pre-wrap; font-size: .9em; }
 }
 .front-matter .fm-raw { margin: 0; background: none; border: 0; padding: 0; }
 .front-matter .fm-hint { margin: .4em 0 0; font-size: .8em; opacity: .7; }
+
+/* ---- 任务列表（- [ ] / - [x]） ---- */
+#write li.task-list-item {
+  list-style: none;
+}
+#write li.task-list-item > input[type="checkbox"],
+#write li.task-list-item > p > input[type="checkbox"] {
+  margin: 0 .45em 0 0;
+  vertical-align: -.08em;
+}
+#write ul.contains-task-list, #write ol.contains-task-list {
+  padding-left: 1.3em;
+}
+
+/* ---- 告警块（> [!NOTE] / > [!WARNING] …） ---- */
+#write blockquote.alert {
+  padding: .65em 1em;
+  color: inherit;
+  border-left-color: var(--mp-alert-color, currentColor);
+  background-color: var(--mp-fence-bg);
+  background-color: color-mix(in srgb, var(--mp-alert-color, currentColor) 8%, transparent);
+}
+#write blockquote.alert > .alert-title {
+  margin: 0 0 .3em;
+  color: var(--mp-alert-color, currentColor);
+  font-weight: 600;
+}
+#write blockquote.alert.alert-note { --mp-alert-color: var(--mp-alert-note); }
+#write blockquote.alert.alert-tip { --mp-alert-color: var(--mp-alert-tip); }
+#write blockquote.alert.alert-important { --mp-alert-color: var(--mp-alert-important); }
+#write blockquote.alert.alert-warning { --mp-alert-color: var(--mp-alert-warning); }
+#write blockquote.alert.alert-caution { --mp-alert-color: var(--mp-alert-caution); }
+
+/* ---- 脚注（[^1] + [^1]: 说明） ---- */
+#write .footnotes {
+  margin-top: 2.2em;
+  font-size: .94em;
+}
+#write .footnotes-sep {
+  border: none;
+  border-top: 1px solid currentColor;
+  opacity: .25;
+  margin: 0 0 .9em;
+}
+#write .footnotes-list { padding-left: 1.4em; }
+#write .footnote-item { margin: .3em 0; }
+#write .footnote-item p { margin: .3em 0; }
+#write .footnote-ref a { text-decoration: none; font-weight: 600; padding: 0 .12em; }
+#write .footnote-backref { margin-left: .4em; text-decoration: none; }
 """
 # ---------------------------------------------------------------- 代码块折行（默认开）
 # 超长行（长注释、长路径）在屏幕上就折行，与 PDF 里的结果一致，不再出现横向滚动条；
@@ -458,7 +520,13 @@ def is_dark_theme(css_path: pathlib.Path | None) -> bool:
     return bool(re.search(r"dark|night|black", css_path.stem, re.I))
 
 
-def make_markdown(math: bool = False, mermaid: bool = False):
+def make_markdown(
+    math: bool = False,
+    mermaid: bool = False,
+    tasklists: bool = True,
+    alerts: bool = True,
+    footnotes: bool = True,
+):
     from markdown_it import MarkdownIt
     from pygments import highlight
     from pygments.formatters import HtmlFormatter
@@ -503,7 +571,280 @@ def make_markdown(math: bool = False, mermaid: bool = False):
     md = MarkdownIt("gfm-like", {"linkify": linkify, "highlight": pyg, "html": True}).enable("table")
     if math:
         _install_math_rules(md)
+
+    # 三个内容规则都挂在 core 的 "inline" 之后，同一插入位置后注册的先执行 ——
+    # 脚注放最后注册，所以它最先跑：脚注正文里若还有任务列表 / 告警块，也能被后面的规则处理。
+    if tasklists:
+        _install_tasklists(md)
+    if alerts:
+        _install_alerts(md)
+    if footnotes:
+        _install_footnotes(md)
     return md, HtmlFormatter
+
+
+# ------------------------------------------------ 内容增强规则（任务列表 / 告警块 / 脚注）
+# markdown-it-py 的 gfm-like 预设只带表格、删除线、linkify，而 AI 日常输出里另外三样高频语法
+# 没有对应实现：任务列表 `- [ ]`、GitHub / Obsidian 告警块 `> [!NOTE]`、脚注 `[^1]`。
+# 与公式规则一样手写（不引第三方插件、不联网），配置里的开关可以逐个关掉。
+TASK_ITEM_RE = re.compile(r"\[[ xX]\][ \t]+")
+ALERT_MARK_RE = re.compile(r"\[!([A-Za-z][\w-]*)\]([+-]?)[ \t]*([^\n]*)")
+FOOTNOTE_DEF_RE = re.compile(r"\[\^([^\]\s]+)\]:[ \t]*(.*)")
+FOOTNOTE_REF_RE = re.compile(r"\[\^([^\]\s]+)\]")
+ALERT_TITLES = {
+    "note": "Note",
+    "tip": "Tip",
+    "important": "Important",
+    "warning": "Warning",
+    "caution": "Caution",
+}
+
+
+def _token(type_: str, nesting: int = 0):
+    """造一个 token；延迟 import，让 markdown-it 只在真正渲染时才加载。"""
+    from markdown_it.token import Token
+
+    return Token(type_, "", nesting)
+
+
+def _strip_inline_prefix(children: list, prefix: str) -> bool:
+    """从 inline 子 token 的开头删掉纯文本 prefix，并吃掉因此空掉的首行。
+
+    前缀都是普通文本（`[ ] `、`[!NOTE]`），只可能落在第一个 text token 上；形状和预期不符就
+    整体放弃（返回 False）—— 宁可保持原文，也不要把正文删错位。
+    """
+    if not children or children[0].type != "text" or not children[0].content.startswith(prefix):
+        return False
+    children[0].content = children[0].content[len(prefix):]
+    while children and (
+        (children[0].type == "text" and not children[0].content) or children[0].type == "softbreak"
+    ):
+        children.pop(0)
+    return True
+
+
+def _add_class(tok, name: str) -> None:
+    """给 token 追加 class；重复调用不会写出两遍（规则会遍历所有列表项）。"""
+    if name not in (tok.attrs or {}).get("class", "").split():
+        tok.attrJoin("class", name)
+
+
+def _install_tasklists(md) -> None:
+    """`- [ ] 待办` / `- [x] 完成` → 真正的复选框（GFM 任务列表）。"""
+
+    def tasklists(state) -> None:
+        opened: list = []  # 打开着的列表 / 列表项，用来回填 class
+        for i, tok in enumerate(state.tokens):
+            if tok.type in ("bullet_list_open", "ordered_list_open", "list_item_open"):
+                opened.append(tok)
+                continue
+            if tok.type in ("bullet_list_close", "ordered_list_close", "list_item_close"):
+                if opened:
+                    opened.pop()
+                continue
+            if tok.type != "inline" or not tok.children:
+                continue
+            if i == 0 or state.tokens[i - 1].type != "paragraph_open":
+                continue  # 只认列表项段落的第一行：正文里出现的 `[x]` 保持原样
+            item = next((t for t in reversed(opened) if t.type == "list_item_open"), None)
+            listing = next((t for t in reversed(opened) if t.type.endswith("_list_open")), None)
+            if item is None or listing is None:
+                continue
+            m = TASK_ITEM_RE.match(tok.content)
+            if not m:
+                continue
+            checked = tok.content[1].lower() == "x"
+            if not _strip_inline_prefix(tok.children, tok.content[: m.end()]):
+                continue
+            tok.content = tok.content[m.end():]
+            box = _token("html_inline")
+            box.content = (
+                '<input class="task-list-item-checkbox" type="checkbox" disabled'
+                + (" checked" if checked else "")
+                + "> "
+            )
+            tok.children.insert(0, box)
+            _add_class(item, "task-list-item")
+            _add_class(listing, "contains-task-list")
+
+    md.core.ruler.after("inline", "tasklists", tasklists)
+
+
+def _install_alerts(md) -> None:
+    """`> [!NOTE]` → 带类型的告警块（GitHub 写法）。
+
+    标记后同一行还有文字时当标题用（Obsidian 的写法）；`-` / `+` 折叠标记忽略，内容照样展开。
+    类型不认识就整个不动，退回普通引用块。
+    """
+
+    def alerts(state) -> None:
+        i = 0
+        while i + 3 < len(state.tokens):
+            quote, p_open, inline, p_close = state.tokens[i : i + 4]
+            if (
+                quote.type != "blockquote_open"
+                or p_open.type != "paragraph_open"
+                or inline.type != "inline"
+                or p_close.type != "paragraph_close"
+                or not inline.children
+            ):
+                i += 1
+                continue
+            m = ALERT_MARK_RE.match(inline.content)
+            kind = m.group(1).lower() if m else ""
+            if kind not in ALERT_TITLES:
+                i += 1
+                continue
+            if not _strip_inline_prefix(inline.children, inline.content[: m.end()]):
+                i += 1
+                continue
+            inline.content = inline.content[m.end():].lstrip("\n")
+            title = m.group(3).strip() or ALERT_TITLES[kind]
+            quote.attrJoin("class", f"alert alert-{kind}")
+            quote.attrSet("data-alert", kind)
+            head = _token("html_block")
+            head.content = f'<p class="alert-title">{html_mod.escape(title)}</p>\n'
+            state.tokens.insert(i + 1, head)
+            if not inline.content:
+                del state.tokens[i + 2 : i + 5]  # 只有标记没有正文：连空的 <p></p> 一起删掉
+            i += 1
+
+    md.core.ruler.after("inline", "alerts", alerts)
+
+
+def _install_footnotes(md) -> None:
+    """`正文[^1]` + `[^1]: 说明` → 上标引用 + 文末脚注区（GitHub / Pandoc 的写法）。
+
+    没有定义就不转换（保持原文），没人引用的定义不显示（GitHub 语义；render_html 会提醒一句，
+    免得内容悄悄消失）。
+    """
+
+    def footnote_def(state, start_line: int, end_line: int, silent: bool) -> bool:
+        line = state.src[state.bMarks[start_line] + state.tShift[start_line] : state.eMarks[start_line]]
+        m = FOOTNOTE_DEF_RE.match(line)
+        if not m:
+            return False
+        if silent:
+            return True
+        label, first = m.group(1), m.group(2)
+        body = [first] if first.strip() else []
+        indent = None
+        next_line, last_line = start_line + 1, start_line
+        while next_line < end_line:
+            raw = state.src[state.bMarks[next_line] : state.eMarks[next_line]]
+            if not raw.strip():
+                body.append("")  # 空行先留着（多段脚注要用），最后统一去掉尾部空行
+                next_line += 1
+                continue
+            lead = len(raw) - len(raw.lstrip(" \t"))
+            if lead < 2:
+                break
+            if indent is None:
+                indent = min(lead, 4)
+            body.append(raw[indent:])
+            last_line = next_line
+            next_line += 1
+        while body and not body[-1].strip():
+            body.pop()
+        defs = state.env.setdefault("fn_defs", {})
+        defs.setdefault(label, "\n".join(body).strip())  # 重复定义以第一次为准
+        state.line = last_line + 1
+        return True
+
+    def footnote_ref(state, silent: bool) -> bool:
+        if state.src[state.pos] != "[":
+            return False
+        m = FOOTNOTE_REF_RE.match(state.src, state.pos)
+        if not m or m.group(1) not in (state.env.get("fn_defs") or {}):
+            return False
+        label = m.group(1)
+        if not silent:
+            refs = state.env.setdefault("fn_refs", [])
+            if label not in refs:
+                refs.append(label)
+            seq = state.env.setdefault("fn_seq", {})
+            seq[label] = seq.get(label, 0) + 1
+            tok = state.push("footnote_ref", "", 0)
+            tok.meta = {"label": label, "seq": seq[label]}
+        state.pos = m.end()
+        return True
+
+    def render_ref(_self, tokens, idx, _options, env) -> str:
+        meta = tokens[idx].meta
+        number = list(env.get("fn_refs") or []).index(meta["label"]) + 1
+        ref_id = f"fnref-{number}" + (f"-{meta['seq']}" if meta["seq"] > 1 else "")
+        return (
+            f'<sup class="footnote-ref"><a href="#fn-{number}" id="{ref_id}"'
+            f' role="doc-noteref">{number}</a></sup>'
+        )
+
+    def render_block_open(_self, _tokens, _idx, _options, _env) -> str:
+        return (
+            '<section class="footnotes" role="doc-endnotes">\n'
+            '<hr class="footnotes-sep">\n<ol class="footnotes-list">\n'
+        )
+
+    def render_block_close(_self, _tokens, _idx, _options, _env) -> str:
+        return "</ol>\n</section>\n"
+
+    def render_item_open(_self, tokens, idx, _options, _env) -> str:
+        return f'<li id="fn-{tokens[idx].meta["number"]}" class="footnote-item">'
+
+    def render_item_close(_self, _tokens, _idx, _options, _env) -> str:
+        return "</li>\n"
+
+    def render_backref(_self, tokens, idx, _options, _env) -> str:
+        meta = tokens[idx].meta
+        links = [
+            f'<a href="#fnref-{meta["number"]}" class="footnote-backref"'
+            f' role="doc-backlink" aria-label="回到正文引用">↩</a>'
+        ]
+        for extra in range(2, int(meta.get("seqs", 1)) + 1):
+            links.append(
+                f'<a href="#fnref-{meta["number"]}-{extra}" class="footnote-backref"'
+                f' role="doc-backlink" aria-label="回到正文引用 {extra}">↩<sup>{extra}</sup></a>'
+            )
+        return "".join(links)
+
+    def footnote_tail(state) -> None:
+        """把引用到的定义拼成文末的脚注区（挂在 inline 之后：正文与定义都解析完了）。"""
+        defs = state.env.get("fn_defs") or {}
+        refs = state.env.get("fn_refs") or []
+        if not refs:
+            return
+        seqs = state.env.get("fn_seq") or {}
+        tail: list = [_token("footnote_block_open", 1)]
+        i = 0
+        while i < len(refs) and i < 500:  # 脚注正文里还能再引用，所以按「增长中的列表」推进
+            label = refs[i]
+            number = i + 1
+            i += 1
+            body: list = []
+            state.md.block.parse(defs.get(label, ""), state.md, state.env, body)
+            for tok in body:
+                if tok.type == "inline" and not tok.children:
+                    tok.children = []
+                    state.md.inline.parse(tok.content, state.md, state.env, tok.children)
+            item = _token("footnote_item_open", 1)
+            item.meta = {"number": number}
+            back = _token("footnote_backref")
+            back.meta = {"number": number, "seqs": seqs.get(label, 1)}
+            tail += [item, *body, back, _token("footnote_item_close", -1)]
+        tail.append(_token("footnote_block_close", -1))
+        state.tokens.extend(tail)
+
+    md.block.ruler.before("reference", "footnote_def", footnote_def)
+    md.inline.ruler.before("link", "footnote_ref", footnote_ref)
+    md.core.ruler.after("inline", "footnote_tail", footnote_tail)
+    for name, rule in (
+        ("footnote_ref", render_ref),
+        ("footnote_block_open", render_block_open),
+        ("footnote_block_close", render_block_close),
+        ("footnote_item_open", render_item_open),
+        ("footnote_item_close", render_item_close),
+        ("footnote_backref", render_backref),
+    ):
+        md.add_render_rule(name, rule)
 
 
 # ------------------------------------------------ 可选前端资源（KaTeX 公式 / Mermaid 图表）
@@ -936,8 +1277,20 @@ def render_html(src_path: pathlib.Path, css: str, cfg: dict[str, str], mode: str
     fm_card = front_matter_html(fm_meta, fm_source or "", fm_mode) if fm_source is not None else ""
     katex_dir = resolve_assets("katex", cfg) if _flag_on(cfg, "math") else None
     mermaid_dir = resolve_assets("mermaid", cfg) if _flag_on(cfg, "mermaid") else None
-    md, HtmlFormatter = make_markdown(math=katex_dir is not None, mermaid=mermaid_dir is not None)
-    body = fm_card + _add_heading_ids(md.render(text))
+    md, HtmlFormatter = make_markdown(
+        math=katex_dir is not None,
+        mermaid=mermaid_dir is not None,
+        tasklists=_flag_on(cfg, "tasklists"),
+        alerts=_flag_on(cfg, "alerts"),
+        footnotes=_flag_on(cfg, "footnotes"),
+    )
+    note_env: dict = {}
+    body = fm_card + _add_heading_ids(md.render(text, note_env))
+    unused_notes = [k for k in (note_env.get("fn_defs") or {}) if k not in (note_env.get("fn_refs") or [])]
+    if unused_notes:
+        shown = "、".join(f"[^{k}]" for k in unused_notes[:5])
+        print(f"md-preview: 有 {len(unused_notes)} 条脚注定义没有被引用（{shown}），"
+              "按 GitHub 语义不显示；要保留原文可用 --no-footnotes", file=sys.stderr)
 
     needs_math = "data-tex=" in body
     needs_mermaid = '<pre class="mermaid">' in body
@@ -1204,6 +1557,9 @@ def run(args: list[str]) -> int:
         ("--no-math", "math"),
         ("--no-mermaid", "mermaid"),
         ("--no-code-wrap", "code_wrap"),
+        ("--no-tasklists", "tasklists"),
+        ("--no-alerts", "alerts"),
+        ("--no-footnotes", "footnotes"),
     ):
         if flag in args:
             args.remove(flag)
@@ -1233,7 +1589,10 @@ def run(args: list[str]) -> int:
             if p and pathlib.Path(p).exists():
                 st = pathlib.Path(p).stat()
                 sig_parts += [p, str(st.st_mtime_ns), str(st.st_size)]
-        sig_parts += [str(cfg.get(k, "auto")) for k in ("math", "mermaid", "code_wrap")]
+        sig_parts += [
+            str(cfg.get(k, "auto"))
+            for k in ("math", "mermaid", "code_wrap", "tasklists", "alerts", "footnotes")
+        ]
         sig = hashlib.sha1(":".join(sig_parts).encode("utf-8")).hexdigest()
 
         pdf_path = outdir / (src.stem + ".pdf")

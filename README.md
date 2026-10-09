@@ -46,6 +46,9 @@ keeps doing what it is good at (reading, zooming, annotating).
   and `#write { overflow-wrap: anywhere }` stops long inline code or table cells from overflowing the page — which
   used to silently truncate characters in the PDF. `--no-code-wrap` brings the scrollbar back on screen only;
   print always wraps, because on paper there is no scrollbar to reveal what a clipped line hid.
+- **Task lists, alerts and footnotes** — `- [ ]` / `- [x]`, `> [!NOTE]` (note / tip / important / warning /
+  caution) and `[^1]` + `[^1]: note` are rendered natively, by hand-written markdown-it rules (no extra plugin,
+  no network). `--no-tasklists` / `--no-alerts` / `--no-footnotes` turn each one back into plain text.
 
 ## Install
 
@@ -253,7 +256,6 @@ Measured on Ubuntu 26.04 / KDE Gear 25.12.3 (Edge + Firefox), using `tools/probe
 
 ## Known limitations
 
-- Task lists (`- [x]`) are not turned into checkboxes (needs an extra markdown-it plugin).
 - Okular annotations attach to the cached PDF; when the source changes the PDF is regenerated and
   Okular's per-path annotation file may drift. Use `--html` for documents you annotate long-term.
 - Links between `.md` files do not work in the PDF, and open in the browser rather than continuing the preview.

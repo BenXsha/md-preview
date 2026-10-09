@@ -274,6 +274,104 @@ def test_overflow_guards_in_base_and_print_css():
     assert "white-space: pre-wrap !important" in cli.PRINT_CSS
 
 
+# ------------------------------------------------------------------ 任务列表 / 告警块 / 脚注
+
+def test_tasklists_render_checkboxes():
+    md, _ = cli.make_markdown()
+    html = md.render("- [ ] 未完成\n- [x] 已完成\n")
+    assert 'class="contains-task-list"' in html
+    assert html.count("contains-task-list") == 1  # class 不重复
+    assert html.count('class="task-list-item"') == 2
+    assert html.count('class="task-list-item-checkbox"') == 2
+    assert html.count("checked") == 1
+    assert "[ ]" not in html and "[x]" not in html
+
+
+def test_tasklists_leave_plain_text_alone():
+    md, _ = cli.make_markdown()
+    html = md.render("正文里的 [x] 不该变。\n\n- 普通项\n")
+    assert "task-list-item" not in html and "[x]" in html
+
+
+def test_alerts_render_typed_blocks():
+    md, _ = cli.make_markdown()
+    html = md.render("> [!WARNING]\n> 磁盘要满了。\n")
+    assert '<blockquote class="alert alert-warning" data-alert="warning">' in html
+    assert '<p class="alert-title">Warning</p>' in html
+    assert "磁盘要满了" in html and "[!WARNING]" not in html
+
+
+def test_alerts_custom_title_empty_body_and_unknown_kind():
+    md, _ = cli.make_markdown()
+    assert '<p class="alert-title">小技巧</p>' in md.render("> [!tip] 小技巧\n> 先备份。\n")
+    assert "<p></p>" not in md.render("> [!TIP]\n")  # 只有标记没有正文
+    assert "alert-" not in md.render("> [!nonsense]\n> x\n")  # 类型不认识就不动
+    assert "alert-" not in md.render("> 正文\n>\n> [!NOTE]\n")  # 标记必须在引用块第一段开头
+
+
+def test_footnotes_render_refs_section_and_backrefs():
+    md, _ = cli.make_markdown()
+    html = md.render("正文[^1]，再看[^1]，还有[^2]。\n\n[^1]: 第一条。\n\n[^2]: 第二条。\n")
+    assert '<sup class="footnote-ref">' in html
+    assert 'href="#fn-1" id="fnref-1"' in html
+    assert 'id="fnref-1-2"' in html  # 同一脚注的第二次引用有自己的返回锚
+    assert html.count('<li id="fn-1"') == 1 and html.count('<li id="fn-2"') == 1
+    assert '<section class="footnotes"' in html and 'class="footnote-backref"' in html
+    assert "第一条。" in html and "第二条。" in html
+    assert "[^1]:" not in html  # 定义不会留在正文里
+    assert html.count(">1</a>") == 2  # 两次引用共用编号 1
+
+
+def test_footnotes_multi_paragraph_and_edge_cases():
+    md, _ = cli.make_markdown()
+    html = md.render("正文[^a]。\n\n[^a]: 第一段\n\n    第二段\n")
+    assert "<p>第一段</p>" in html and "<p>第二段</p>" in html
+    assert "footnote-ref" not in md.render("正文[^missing]。\n")  # 没定义 → 保持原文
+    assert "footnotes" not in md.render("正文。\n\n[^unused]: 没人引用。\n")  # 没人引用 → 不显示
+    html = md.render("正文[^self]。\n\n[^self]: 见 [^self]。\n")  # 自引用不会无限展开
+    assert html.count('<li id="fn-1"') == 1
+    # 脚注正文里也能用任务列表 / 告警块（规则顺序：脚注先跑，正文再被后面两条规则处理）
+    html = md.render("正文[^t]。\n\n[^t]: 清单：\n\n    - [x] 甲\n\n    > [!NOTE]\n    > 备注。\n")
+    assert "task-list-item-checkbox" in html and 'class="alert alert-note"' in html
+
+
+def test_content_rules_can_be_switched_off(tmp_path, monkeypatch):
+    _prepare(tmp_path, monkeypatch, None)
+    doc = tmp_path / "rules.md"
+    doc.write_text("- [x] 甲\n\n> [!NOTE]\n> 备注[^1]。\n\n[^1]: 说明。\n", encoding="utf-8")
+    html_path, _, _ = cli.render_html(doc, cli.BASE_CSS, {"theme": ""}, "html")
+    html = html_path.read_text(encoding="utf-8")
+    assert 'class="task-list-item-checkbox"' in html
+    assert 'class="alert alert-note"' in html
+    assert '<section class="footnotes"' in html
+    off = {"theme": "", "tasklists": "off", "alerts": "off", "footnotes": "off"}
+    html_path, _, _ = cli.render_html(doc, cli.BASE_CSS, off, "html")
+    html = html_path.read_text(encoding="utf-8")
+    assert 'class="task-list-item-checkbox"' not in html
+    assert 'class="alert alert-note"' not in html
+    assert '<section class="footnotes"' not in html  # 注意断言标记本身：BASE_CSS 里本来就有 .footnotes 选择器
+    assert "[!NOTE]" in html and "[^1]" in html  # 关掉后就是原文
+
+
+def test_unused_footnote_definition_warns(tmp_path, monkeypatch, capsys):
+    _prepare(tmp_path, monkeypatch, None)
+    doc = tmp_path / "note.md"
+    doc.write_text("正文。\n\n[^unused]: 没人引用。\n", encoding="utf-8")
+    cli.render_html(doc, cli.BASE_CSS, {"theme": ""}, "html")
+    assert "脚注定义没有被引用" in capsys.readouterr().err
+
+
+def test_sample_document_covers_content_rules(tmp_path, monkeypatch):
+    """tests/sample.md 是主题截图与人工验收的底稿，新内容规则要在里面留痕。"""
+    _prepare(tmp_path, monkeypatch, None)
+    html_path, _, _ = cli.render_html(SAMPLE, cli.BASE_CSS, {"theme": ""}, "html")
+    html = html_path.read_text(encoding="utf-8")
+    assert 'class="task-list-item-checkbox"' in html
+    assert 'class="alert alert-note"' in html and 'class="alert alert-warning"' in html
+    assert '<section class="footnotes"' in html
+
+
+
 def test_flag_on_defaults_and_off_values():
     assert cli._flag_on({}, "math") is True
     assert cli._flag_on({"math": "auto"}, "math") is True
